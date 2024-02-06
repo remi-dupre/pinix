@@ -74,14 +74,14 @@ impl Display for BuildStepId {
 #[serde(tag = "action", rename_all = "lowercase")]
 pub enum Action {
     Msg {
-        level: u8, // TODO
+        level: u8,
         msg: String,
     },
     Start {
         #[serde(rename = "type")]
         action_type: ActionType,
         id: BuildStepId,
-        level: u8, // TODO
+        level: u8,
         parent: BuildStepId,
         text: String,
         #[serde(default)]
