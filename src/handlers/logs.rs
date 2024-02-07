@@ -1,7 +1,7 @@
 use console::style;
 
 use crate::action::{Action, BuildStepId, ResultFields};
-use crate::state::{Handler, HandlerResult, NewState};
+use crate::state::{Handler, HandlerResult, State};
 
 #[derive(Default)]
 pub struct LogHandler {
@@ -19,7 +19,7 @@ impl LogHandler {
 }
 
 impl Handler for LogHandler {
-    fn handle(&mut self, state: &mut NewState, action: &Action) -> HandlerResult {
+    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             Action::Result {
                 id,
@@ -36,10 +36,12 @@ impl Handler for LogHandler {
                     let prefix = if i + 1 == logs_len { '└' } else { '│' };
                     state.println(style(format!("{prefix} {line}")).dim().to_string());
                 }
+
+                return HandlerResult::Close;
             }
 
             _ => {}
-        };
+        }
 
         HandlerResult::Continue
     }

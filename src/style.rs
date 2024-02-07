@@ -50,7 +50,7 @@ static MATCH_BUILD_TARGET: Lazy<Regex> = Lazy::new(|| {
         r"^",
         r"(?P<prefix>\/nix\/store\/[a-z0-9]+)-",
         r"(?P<name>.*?)",
-        r"(?:-(?P<version>[ab\d.]+))?",
+        r"(?:-(?P<version>\d{4}-\d{2}-\d{2}|[ab\d.]+))?",
         r"(?:\.drv)?",
         r"$",
     ))

@@ -5,12 +5,12 @@ use indexmap::IndexMap;
 use indicatif::ProgressBar;
 
 use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
-use crate::state::{Handler, HandlerResult, NewState};
+use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_build_target, format_short_build_target, PROGRESS_STYLE, SPINNER_FREQ};
 
 use super::logs::LogHandler;
 
-pub fn handle_new_builds(state: &mut NewState, action: &Action) -> HandlerResult {
+pub fn handle_new_builds(state: &mut State, action: &Action) -> HandlerResult {
     if let Action::Start {
         action_type: ActionType::Builds,
         id,
@@ -48,7 +48,7 @@ impl Builds {
 }
 
 impl Handler for Builds {
-    fn handle(&mut self, state: &mut NewState, action: &Action) -> HandlerResult {
+    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             // New build
             Action::Start {
@@ -118,7 +118,7 @@ impl Build {
 }
 
 impl Handler for Build {
-    fn handle(&mut self, state: &mut NewState, action: &Action) -> HandlerResult {
+    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             Action::Stop { id } if *id == self.id => {
                 let icon = style("✓").green();

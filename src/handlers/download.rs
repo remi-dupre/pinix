@@ -2,12 +2,12 @@ use console::style;
 use indicatif::{HumanBytes, ProgressBar};
 
 use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
-use crate::state::{Handler, HandlerResult, NewState};
+use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_build_target, DOWNLOAD_STYLE, SPINNER_FREQ};
 
 use super::logs::LogHandler;
 
-pub fn handle_new_download(state: &mut NewState, action: &Action) -> HandlerResult {
+pub fn handle_new_download(state: &mut State, action: &Action) -> HandlerResult {
     if let Action::Start {
         action_type: ActionType::CopyPath,
         id,
@@ -33,7 +33,7 @@ struct WaitForTransfer {
 }
 
 impl Handler for WaitForTransfer {
-    fn handle(&mut self, state: &mut NewState, action: &Action) -> HandlerResult {
+    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             Action::Start {
                 action_type: ActionType::FileTransfer,
@@ -69,7 +69,7 @@ struct Transfering {
 }
 
 impl Handler for Transfering {
-    fn handle(&mut self, state: &mut NewState, action: &Action) -> HandlerResult {
+    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             Action::Result {
                 action_type: ActionType::Build,
