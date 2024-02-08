@@ -1,3 +1,4 @@
+use std::fmt;
 use std::time::Duration;
 
 use console::style;
@@ -5,9 +6,10 @@ use indicatif::ProgressStyle;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+pub const PROGRESS_WIDTH: u64 = 30;
 pub const SPINNER_FREQ: Duration = Duration::from_millis(100);
 
-static SPINNER_STR: Lazy<Vec<&str>> = Lazy::new(|| {
+pub static SPINNER_STR: Lazy<Vec<&str>> = Lazy::new(|| {
     static AS_STRINGS: Lazy<Vec<String>> = Lazy::new(|| {
         let mut tick_strings: Vec<_> = "⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈⠈"
             .chars()
@@ -21,28 +23,26 @@ static SPINNER_STR: Lazy<Vec<&str>> = Lazy::new(|| {
     AS_STRINGS.iter().map(String::as_str).collect()
 });
 
-static _SPINNER_STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
-    ProgressStyle::with_template("{spinner} {prefix} {wide_msg} {elapsed:>4}")
+pub static PROGRESS_STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
+    let p = "{spinner} {prefix} {wide_msg} {pos:>5}/{len:<6}";
+
+    ProgressStyle::with_template(&format!("{p} [{{bar:{PROGRESS_WIDTH}}}] {{elapsed:>4}}"))
         .unwrap()
+        .progress_chars("## ")
         .tick_strings(&SPINNER_STR)
 });
 
-pub static PROGRESS_STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
-    ProgressStyle::with_template(
-        "{spinner} {prefix} {wide_msg} {pos}/{len:<8} [{bar:40}] {elapsed:>4}",
-    )
-    .unwrap()
-    .progress_chars("## ")
-    .tick_strings(&SPINNER_STR)
+pub static DOWNLOAD_STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
+    let p = "{spinner} {prefix} {wide_msg} {binary_bytes_per_sec:^12} {bytes:^12}";
+
+    ProgressStyle::with_template(&format!("{p} [{{bar:{PROGRESS_WIDTH}}}] {{elapsed:>4}}",))
+        .unwrap()
+        .progress_chars("## ")
+        .tick_strings(&SPINNER_STR)
 });
 
-pub static DOWNLOAD_STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
-    ProgressStyle::with_template(
-        "{spinner} {prefix} {wide_msg} {binary_bytes_per_sec:<14} {bytes:<12} [{bar:40}] {elapsed:>4}",
-    )
-    .unwrap()
-    .progress_chars("## ")
-    .tick_strings(&SPINNER_STR)
+pub static LOGS_WINDOW_STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
+    ProgressStyle::with_template(&style("{prefix} {wide_msg}").dim().to_string()).unwrap()
 });
 
 static MATCH_BUILD_TARGET: Lazy<Regex> = Lazy::new(|| {
@@ -54,7 +54,7 @@ static MATCH_BUILD_TARGET: Lazy<Regex> = Lazy::new(|| {
         r"(?:\.drv)?",
         r"$",
     ))
-    .unwrap()
+    .expect("invalid RegEx")
 });
 
 fn match_build_target(raw_str: &str) -> Option<(&str, &str, Option<&str>)> {
@@ -99,4 +99,19 @@ pub fn format_build_target(raw_str: &str) -> String {
     }
 
     result
+}
+
+#[derive(Debug)]
+pub struct MultiBar<'s, const N: usize>(pub [(&'s str, u64); N]);
+
+impl<const N: usize> fmt::Display for MultiBar<'_, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for &(c, len) in &self.0 {
+            for _ in 0..len {
+                f.write_str(c)?;
+            }
+        }
+
+        Ok(())
+    }
 }

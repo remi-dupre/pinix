@@ -1,14 +1,41 @@
+use std::rc::Rc;
 use std::time::Instant;
 
 use console::style;
 use indexmap::IndexMap;
-use indicatif::ProgressBar;
+use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
+use crate::handlers::logs::{LogHandler, LogsWindow};
 use crate::state::{Handler, HandlerResult, State};
-use crate::style::{format_build_target, format_short_build_target, PROGRESS_STYLE, SPINNER_FREQ};
+use crate::style::{
+    format_build_target, format_short_build_target, MultiBar, PROGRESS_STYLE, PROGRESS_WIDTH,
+    SPINNER_FREQ, SPINNER_STR,
+};
 
-use super::logs::LogHandler;
+pub fn builds_progress_style(done: u64, expected: u64, running: u64) -> ProgressStyle {
+    let adv1 = (PROGRESS_WIDTH * done + expected / 2)
+        .checked_div(expected)
+        .unwrap_or(0);
+
+    let adv2 = (PROGRESS_WIDTH * (done + running) + expected / 2)
+        .checked_div(expected)
+        .unwrap_or(0);
+
+    let c_pos = "#";
+    let c_run = style("-").green().bright().to_string();
+    let p = "{spinner} {prefix} {wide_msg} {pos:>5}/{len:<6}";
+
+    let bar = MultiBar([
+        (c_pos, adv1),
+        (&c_run, adv2 - adv1),
+        (" ", PROGRESS_WIDTH - adv2),
+    ]);
+
+    ProgressStyle::with_template(&format!("{p} [{bar}] {{elapsed:>4}}"))
+        .unwrap()
+        .tick_strings(&SPINNER_STR)
+}
 
 pub fn handle_new_builds(state: &mut State, action: &Action) -> HandlerResult {
     if let Action::Start {
@@ -21,12 +48,18 @@ pub fn handle_new_builds(state: &mut State, action: &Action) -> HandlerResult {
             .with_style(PROGRESS_STYLE.clone())
             .with_prefix("Build");
 
-        let progress = state.multi_progress.insert(0, progress);
+        let progress = state
+            .multi_progress
+            .insert_after(&state.separator, progress);
+
+        let logs_window = Rc::new(LogsWindow::new(state, &progress, 5));
         progress.enable_steady_tick(SPINNER_FREQ);
+
         state.plug(Builds {
             id: *id,
             progress,
             builds_formatted: IndexMap::new(),
+            logs_window,
         });
     }
 
@@ -38,6 +71,7 @@ struct Builds {
     id: BuildStepId,
     progress: ProgressBar,
     builds_formatted: IndexMap<BuildStepId, String>,
+    logs_window: Rc<LogsWindow>,
 }
 
 impl Builds {
@@ -62,12 +96,11 @@ impl Handler for Builds {
 
                 self.update_message();
                 state.plug(Build::new(*id, target.to_string()));
-                state.plug(LogHandler::new(*id));
+                state.plug(LogHandler::new(*id).with_logs_window(self.logs_window.clone()));
             }
 
             // Stop build
-            Action::Stop { id } if self.builds_formatted.contains_key(id) => {
-                self.builds_formatted.shift_remove(id);
+            Action::Stop { id } if self.builds_formatted.shift_remove(id).is_some() => {
                 self.update_message();
             }
 
@@ -75,8 +108,11 @@ impl Handler for Builds {
             Action::Result {
                 action_type: ActionType::Build,
                 id,
-                fields: ResultFields::Progress([done, expected, ..]),
+                fields: ResultFields::Progress([done, expected, running, ..]),
             } if *id == self.id => {
+                self.progress
+                    .set_style(builds_progress_style(*done, *expected, *running));
+
                 self.progress.set_length(*expected);
                 self.progress.set_position(*done);
             }

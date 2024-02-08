@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
-use indicatif::MultiProgress;
+use console::style;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 use crate::action::Action;
 
@@ -20,12 +21,38 @@ impl<F: FnMut(&mut State, &Action) -> HandlerResult> Handler for F {
     }
 }
 
-#[derive(Default)]
 pub struct State<'s> {
     pub multi_progress: Rc<MultiProgress>,
     pub handlers: Vec<Box<dyn Handler + 's>>,
-    /// Use for debugging
+    pub separator: ProgressBar,
+
+    /// Keep track of the handler could while applying them. Usefull for
+    /// debugging.
     pub handlers_len: usize,
+}
+
+impl Default for State<'_> {
+    fn default() -> Self {
+        let multi_progress = Rc::new(MultiProgress::default());
+
+        let separator = ProgressBar::new_spinner()
+            .with_style(
+                ProgressStyle::default_spinner()
+                    .template("{wide_msg:^}")
+                    .expect("invalid template"),
+            )
+            .with_message(style("-".repeat(512)).dim().to_string());
+
+        let separator = multi_progress.add(separator);
+        separator.set_length(0);
+
+        Self {
+            multi_progress,
+            handlers: Vec::new(),
+            separator,
+            handlers_len: 0,
+        }
+    }
 }
 
 impl<'s> State<'s> {

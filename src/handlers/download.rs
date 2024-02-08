@@ -3,7 +3,7 @@ use indicatif::{HumanBytes, ProgressBar};
 
 use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
 use crate::state::{Handler, HandlerResult, State};
-use crate::style::{format_build_target, DOWNLOAD_STYLE, SPINNER_FREQ};
+use crate::style::{format_build_target, format_short_build_target, DOWNLOAD_STYLE, SPINNER_FREQ};
 
 use super::logs::LogHandler;
 
@@ -44,14 +44,18 @@ impl Handler for WaitForTransfer {
                 let progress = ProgressBar::new_spinner()
                     .with_style(DOWNLOAD_STYLE.clone())
                     .with_prefix("Download")
-                    .with_message(format_build_target(&self.path));
+                    .with_message(format_short_build_target(&self.path));
 
-                let progress = state.multi_progress.insert(0, progress);
+                let progress = state
+                    .multi_progress
+                    .insert_after(&state.separator, progress);
+
                 progress.enable_steady_tick(SPINNER_FREQ);
 
                 state.plug(Transfering {
                     transfer_id: *id,
                     progress,
+                    path: std::mem::take(&mut self.path),
                 });
 
                 state.plug(LogHandler::new(*id));
@@ -66,6 +70,7 @@ impl Handler for WaitForTransfer {
 struct Transfering {
     transfer_id: BuildStepId,
     progress: ProgressBar,
+    path: String,
 }
 
 impl Handler for Transfering {
@@ -85,7 +90,7 @@ impl Handler for Transfering {
                 let msg_main = format!(
                     "{} Downloaded {}",
                     style("⬇").green(),
-                    self.progress.message()
+                    format_build_target(&self.path),
                 );
 
                 let msg_stats = style(format!(

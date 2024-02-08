@@ -1,12 +1,17 @@
+use std::rc::Rc;
+
 use console::style;
+use indicatif::ProgressBar;
 
 use crate::action::{Action, BuildStepId, ResultFields};
 use crate::state::{Handler, HandlerResult, State};
+use crate::style::LOGS_WINDOW_STYLE;
 
 #[derive(Default)]
 pub struct LogHandler {
     id: BuildStepId,
     logs: Vec<String>,
+    logs_window: Option<Rc<LogsWindow>>,
 }
 
 impl LogHandler {
@@ -14,7 +19,13 @@ impl LogHandler {
         Self {
             id,
             logs: Vec::new(),
+            logs_window: None,
         }
+    }
+
+    pub fn with_logs_window(mut self, logs_window: Rc<LogsWindow>) -> Self {
+        self.logs_window = Some(logs_window);
+        self
     }
 }
 
@@ -27,6 +38,10 @@ impl Handler for LogHandler {
                 ..
             } if *id == self.id => {
                 self.logs.push(msg.to_string());
+
+                if let Some(logs_window) = &self.logs_window {
+                    logs_window.log(msg.to_string());
+                }
             }
 
             Action::Stop { id } if *id == self.id => {
@@ -44,5 +59,43 @@ impl Handler for LogHandler {
         }
 
         HandlerResult::Continue
+    }
+}
+
+pub struct LogsWindow {
+    log_lines: Vec<ProgressBar>,
+}
+
+impl LogsWindow {
+    pub fn new(state: &mut State, after: &ProgressBar, nb_lines: usize) -> Self {
+        let mut log_lines = Vec::new();
+
+        for i in 0..nb_lines {
+            let prefix = if i + 1 == nb_lines { "└" } else { "│" };
+            let prev = log_lines.last().unwrap_or(after);
+
+            let next = state.multi_progress.insert_after(
+                prev,
+                ProgressBar::new_spinner()
+                    .with_style(LOGS_WINDOW_STYLE.clone())
+                    .with_prefix(prefix),
+            );
+
+            log_lines.push(next);
+        }
+
+        Self { log_lines }
+    }
+
+    pub fn log(&self, msg: String) {
+        for (prev, next) in self.log_lines.iter().zip(&self.log_lines[1..]) {
+            if !next.message().is_empty() {
+                prev.set_message(next.message());
+            }
+        }
+
+        if let Some(last_line) = self.log_lines.last() {
+            last_line.set_message(msg);
+        }
     }
 }
