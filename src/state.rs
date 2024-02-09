@@ -4,6 +4,9 @@ use console::style;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 use crate::action::Action;
+use crate::handlers::builds::handle_new_builds;
+use crate::handlers::download::handle_new_download;
+use crate::handlers::message::handle_new_message;
 
 #[derive(Eq, PartialEq)]
 pub enum HandlerResult {
@@ -24,34 +27,45 @@ impl<F: FnMut(&mut State, &Action) -> HandlerResult> Handler for F {
 pub struct State<'s> {
     pub multi_progress: Rc<MultiProgress>,
     pub handlers: Vec<Box<dyn Handler + 's>>,
-    pub separator: ProgressBar,
+
+    // First line
+    separator: ProgressBar,
 
     /// Keep track of the handler could while applying them. Usefull for
     /// debugging.
     pub handlers_len: usize,
 }
 
-impl Default for State<'_> {
-    fn default() -> Self {
+impl State<'_> {
+    pub fn new(title: &str) -> Self {
         let multi_progress = Rc::new(MultiProgress::default());
 
         let separator = ProgressBar::new_spinner()
             .with_style(
                 ProgressStyle::default_spinner()
-                    .template("{wide_msg:^}")
+                    .template("{wide_msg:<}")
                     .expect("invalid template"),
             )
-            .with_message(style("-".repeat(512)).dim().to_string());
+            .with_message(
+                style(format!("-- {title} {}", "-".repeat(512)))
+                    .dim()
+                    .to_string(),
+            );
 
         let separator = multi_progress.add(separator);
         separator.set_length(0);
 
-        Self {
+        let mut state = Self {
             multi_progress,
             handlers: Vec::new(),
             separator,
             handlers_len: 0,
-        }
+        };
+
+        state.plug(handle_new_builds);
+        state.plug(handle_new_download);
+        state.plug(handle_new_message);
+        state
     }
 }
 
@@ -69,6 +83,10 @@ impl<'s> State<'s> {
 
     pub fn plug<H: Handler + 's>(&mut self, handler: H) {
         self.handlers.push(Box::new(handler) as _)
+    }
+
+    pub fn add(&mut self, pb: ProgressBar) -> ProgressBar {
+        self.multi_progress.insert_after(&self.separator, pb)
     }
 
     pub fn println(&self, msg: impl AsRef<str>) {

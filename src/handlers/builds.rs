@@ -23,7 +23,7 @@ pub fn builds_progress_style(done: u64, expected: u64, running: u64) -> Progress
         .unwrap_or(0);
 
     let c_pos = "#";
-    let c_run = style("-").green().bright().to_string();
+    let c_run = style("-").blue().bright().to_string();
     let p = "{spinner} {prefix} {wide_msg} {pos:>5}/{len:<6}";
 
     let bar = MultiBar([
@@ -48,10 +48,7 @@ pub fn handle_new_builds(state: &mut State, action: &Action) -> HandlerResult {
             .with_style(PROGRESS_STYLE.clone())
             .with_prefix("Build");
 
-        let progress = state
-            .multi_progress
-            .insert_after(&state.separator, progress);
-
+        let progress = state.add(progress);
         let logs_window = Rc::new(LogsWindow::new(state, &progress, 5));
         progress.enable_steady_tick(SPINNER_FREQ);
 
@@ -119,7 +116,9 @@ impl Handler for Builds {
 
             // Stop builds
             Action::Stop { id } if *id == self.id => {
-                if let Some(nb_built) = self.progress.length() {
+                let nb_built = self.progress.length().unwrap_or(0);
+
+                if nb_built > 0 {
                     let icon = style("⯈").green();
                     let detail = style(format!("({:.0?})", self.progress.duration())).dim();
                     state.println(format!("{icon} Built {nb_built} derivations {detail}"));

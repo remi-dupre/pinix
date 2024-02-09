@@ -46,10 +46,7 @@ impl Handler for WaitForTransfer {
                     .with_prefix("Download")
                     .with_message(format_short_build_target(&self.path));
 
-                let progress = state
-                    .multi_progress
-                    .insert_after(&state.separator, progress);
-
+                let progress = state.add(progress);
                 progress.enable_steady_tick(SPINNER_FREQ);
 
                 state.plug(Transfering {
