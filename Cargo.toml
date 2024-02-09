@@ -16,7 +16,3 @@ serde_repr = "0.1"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "io-util", "process", "rt"] }
 anyhow = { version = "1", features = ["backtrace"] }
-
-# TODO: remove (used for benches)
-[profile.release]
-debug = true

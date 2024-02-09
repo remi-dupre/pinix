@@ -43,14 +43,11 @@ impl State<'_> {
         let separator = ProgressBar::new_spinner()
             .with_style(
                 ProgressStyle::default_spinner()
-                    .template("{wide_msg:<}")
+                    .template("-- {prefix} {wide_msg:<}")
                     .expect("invalid template"),
             )
-            .with_message(
-                style(format!("-- {title} {}", "-".repeat(512)))
-                    .dim()
-                    .to_string(),
-            );
+            .with_prefix(title.to_string())
+            .with_message(style("-".repeat(512)).dim().to_string());
 
         let separator = multi_progress.add(separator);
         separator.set_length(0);

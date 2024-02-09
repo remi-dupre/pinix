@@ -91,6 +91,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "console"
+version = "0.16.0"
+source = "git+https://github.com/remi-dupre/console.git?branch=ansi-slice#7c6842687fe91c9a87318e7acafe4b12e1e797e5"
+dependencies = [
+ "encode_unicode",
+ "lazy_static",
+ "libc",
+ "unicode-width",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "encode_unicode"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -215,10 +227,10 @@ dependencies = [
 
 [[package]]
 name = "indicatif"
-version = "0.17.7"
-source = "git+https://github.com/remi-dupre/indicatif?branch=main#44618a88c4e9da3f355795a7bee9ecdba79c8f5c"
+version = "0.17.8"
+source = "git+https://github.com/remi-dupre/indicatif?branch=main#8b4b4e81f941927848b7e3f516e62f4cb506dfd6"
 dependencies = [
- "console",
+ "console 0.16.0",
  "instant",
  "number_prefix",
  "portable-atomic",
@@ -316,7 +328,7 @@ name = "pix"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "console",
+ "console 0.15.8",
  "futures",
  "indexmap",
  "indicatif",
