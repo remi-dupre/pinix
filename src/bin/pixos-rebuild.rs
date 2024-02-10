@@ -1,9 +1,8 @@
-use std::env;
-
-use pinix::commands::Program;
-use pinix::nix_copycat;
+use pinix::wrapper::command::{NixCommand, WrappedProgram};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
-    nix_copycat(Program::NixOsRebuild, env::args().skip(1)).await
+    NixCommand::from_program_and_args(WrappedProgram::NixOsRebuild, std::env::args().skip(1))
+        .exec_copycat()
+        .await
 }

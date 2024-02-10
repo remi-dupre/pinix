@@ -1,12 +1,16 @@
 use std::rc::Rc;
 
 use console::style;
+use futures::TryStreamExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 use crate::action::Action;
 use crate::handlers::builds::handle_new_builds;
+use crate::handlers::debug::DebugHandler;
 use crate::handlers::download::handle_new_download;
 use crate::handlers::message::handle_new_message;
+use crate::wrapper::command::NixCommand;
+use crate::wrapper::stream::{StreamedPipes, WrappedLine};
 
 #[derive(Eq, PartialEq)]
 pub enum HandlerResult {
@@ -25,39 +29,33 @@ impl<F: FnMut(&mut State, &Action) -> HandlerResult> Handler for F {
 }
 
 pub struct State<'s> {
+    pub cmd: &'s NixCommand,
     pub multi_progress: Rc<MultiProgress>,
     pub handlers: Vec<Box<dyn Handler + 's>>,
 
     // First line
-    separator: ProgressBar,
+    separator: Option<ProgressBar>,
 
     /// Keep track of the handler could while applying them. Usefull for
     /// debugging.
     pub handlers_len: usize,
 }
 
-impl State<'_> {
-    pub fn new(title: &str) -> Self {
+impl<'s> State<'s> {
+    pub fn new(cmd: &'s NixCommand) -> Self {
         let multi_progress = Rc::new(MultiProgress::default());
 
-        let separator = ProgressBar::new_spinner()
-            .with_style(
-                ProgressStyle::default_spinner()
-                    .template("-- {prefix} {wide_msg:<}")
-                    .expect("invalid template"),
-            )
-            .with_prefix(title.to_string())
-            .with_message(style("-".repeat(512)).dim().to_string());
-
-        let separator = multi_progress.add(separator);
-        separator.set_length(0);
-
         let mut state = Self {
+            cmd,
             multi_progress,
             handlers: Vec::new(),
-            separator,
+            separator: None,
             handlers_len: 0,
         };
+
+        if cmd.args.pix_debug {
+            state.plug(DebugHandler::new(&state));
+        }
 
         state.plug(handle_new_builds);
         state.plug(handle_new_download);
@@ -83,7 +81,26 @@ impl<'s> State<'s> {
     }
 
     pub fn add(&mut self, pb: ProgressBar) -> ProgressBar {
-        self.multi_progress.insert_after(&self.separator, pb)
+        let separator = self.separator.get_or_insert_with(|| {
+            let separator = ProgressBar::new_spinner()
+                .with_style(
+                    ProgressStyle::default_spinner()
+                        .template(&style("·· {prefix} {wide_msg:<}").dim().to_string())
+                        .expect("invalid template"),
+                )
+                .with_prefix(format!("Running {}", self.cmd.program.as_str()))
+                .with_message("·".repeat(512));
+
+            let separator = self.multi_progress.insert(0, separator);
+            separator.set_length(0);
+            separator
+        });
+
+        self.multi_progress.insert_after(separator, pb)
+    }
+
+    pub fn remove_separator(&mut self) {
+        self.separator.take();
     }
 
     pub fn println(&self, msg: impl AsRef<str>) {
@@ -91,4 +108,30 @@ impl<'s> State<'s> {
             .println(msg)
             .expect("could not print line")
     }
+}
+
+pub async fn monitor_logs(
+    cmd: &NixCommand,
+    log_stream: impl StreamedPipes<'_>,
+) -> anyhow::Result<()> {
+    let mut state = State::new(cmd);
+
+    log_stream
+        .try_for_each(|line| {
+            match line {
+                WrappedLine::StdOut(line) => state.println(line),
+                WrappedLine::StdErr(line) => {
+                    if let Some(action_str) = line.strip_prefix("@nix ") {
+                        let action =
+                            serde_json::from_str(action_str).expect("invalid JSON in action");
+                        state.handle(&action);
+                    } else {
+                        state.println(line);
+                    }
+                }
+            };
+
+            async { Ok(()) }
+        })
+        .await
 }
