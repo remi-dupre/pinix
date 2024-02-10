@@ -1,7 +1,7 @@
 use std::iter;
 
 #[derive(Debug)]
-pub enum BaseCommand {
+pub enum Program {
     Nix,
     NixCollectGarbage,
     NixOsRebuild,
@@ -11,18 +11,18 @@ pub enum BaseCommand {
 
 #[derive(Debug)]
 pub struct NixCommand {
-    program: BaseCommand,
+    program: Program,
     args: Vec<String>,
 }
 
 impl NixCommand {
     pub fn program_str(&self) -> &str {
         match &self.program {
-            BaseCommand::Nix => "nix",
-            BaseCommand::NixCollectGarbage => "nix-collect-garbage",
-            BaseCommand::NixOsRebuild => "nixos-rebuild",
-            BaseCommand::NixShell => "nix-shell",
-            BaseCommand::Unknown(cmd) => cmd,
+            Program::Nix => "nix",
+            Program::NixCollectGarbage => "nix-collect-garbage",
+            Program::NixOsRebuild => "nixos-rebuild",
+            Program::NixShell => "nix-shell",
+            Program::Unknown(cmd) => cmd,
         }
     }
 
@@ -39,20 +39,20 @@ impl NixCommand {
     pub fn is_repl(&self) -> bool {
         matches!(
             (&self.program, self.args.first().map(String::as_str)),
-            (BaseCommand::NixShell, _) | (BaseCommand::Nix, Some("repl" | "develop" | "shell"))
+            (Program::NixShell, _) | (Program::Nix, Some("repl" | "develop" | "shell"))
         )
     }
 
     fn extra_params(&self) -> impl Iterator<Item = &'static str> + '_ {
         let required: &[(&str, &[_])] = match (&self.program, self.args.as_slice()) {
-            (BaseCommand::Nix | BaseCommand::NixOsRebuild, &[..]) => &[
+            (Program::Nix | Program::NixOsRebuild, &[..]) => &[
                 ("--print-build-logs", &[]),
                 ("--log-format", &["internal-json"]),
             ],
-            (BaseCommand::NixCollectGarbage | BaseCommand::NixShell, &[..]) => {
+            (Program::NixCollectGarbage | Program::NixShell, &[..]) => {
                 &[("--log-format", &["internal-json"])]
             }
-            (BaseCommand::Unknown(_), &[..]) => &[],
+            (Program::Unknown(_), &[..]) => &[],
         };
 
         required
@@ -64,22 +64,24 @@ impl NixCommand {
 }
 
 impl NixCommand {
-    pub fn parse_from_args() -> Option<Self> {
-        let mut args = std::env::args().skip(1);
-        let program = args.next()?;
-        let args: Vec<_> = args.collect();
+    pub fn from_program_and_args(program: Program, args: impl Iterator<Item = String>) -> Self {
+        Self {
+            program,
+            args: args.collect(),
+        }
+    }
 
-        let command = match program.as_str() {
-            "nix" => BaseCommand::Nix,
-            "nix-collect-garbage" => BaseCommand::NixCollectGarbage,
-            "nixos-rebuild" => BaseCommand::NixOsRebuild,
-            "nix-shell" => BaseCommand::NixShell,
-            _ => BaseCommand::Unknown(program),
+    pub fn from_args(mut args: impl Iterator<Item = String>) -> Option<Self> {
+        let program_str = args.next()?;
+
+        let program = match program_str.as_str() {
+            "nix" => Program::Nix,
+            "nix-collect-garbage" => Program::NixCollectGarbage,
+            "nixos-rebuild" => Program::NixOsRebuild,
+            "nix-shell" => Program::NixShell,
+            _ => Program::Unknown(program_str),
         };
 
-        Some(Self {
-            program: command,
-            args,
-        })
+        Some(Self::from_program_and_args(program, args))
     }
 }

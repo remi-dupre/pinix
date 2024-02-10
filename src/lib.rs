@@ -12,10 +12,10 @@ use futures::FutureExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use self::commands::NixCommand;
+use self::commands::{NixCommand, Program};
 use self::state::State;
 
-fn run_from_stdin() {
+pub fn run_from_stdin() {
     let mut state = State::new("Piped Output");
 
     for line in std::io::stdin().lines() {
@@ -31,7 +31,7 @@ fn run_from_stdin() {
     }
 }
 
-async fn run_command_wrapped(cmd: &NixCommand) -> anyhow::Result<ExitStatus> {
+pub async fn run_command_wrapped(cmd: &NixCommand) -> anyhow::Result<ExitStatus> {
     let mut state = State::new(&format!(
         "{} {}",
         cmd.program_str(),
@@ -86,7 +86,7 @@ async fn run_command_wrapped(cmd: &NixCommand) -> anyhow::Result<ExitStatus> {
     child.wait().await.context("child command failed")
 }
 
-async fn run_command_unwrapped(cmd: &NixCommand) -> anyhow::Result<ExitStatus> {
+pub async fn run_command_unwrapped(cmd: &NixCommand) -> anyhow::Result<ExitStatus> {
     Command::new(cmd.program_str())
         .args(cmd.params_unwrapped())
         .spawn()
@@ -96,13 +96,11 @@ async fn run_command_unwrapped(cmd: &NixCommand) -> anyhow::Result<ExitStatus> {
         .context("replcommand failed")
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> anyhow::Result<()> {
-    let Some(command) = NixCommand::parse_from_args() else {
-        run_from_stdin();
-        return Ok(());
-    };
-
+pub async fn nix_copycat(
+    program: Program,
+    args: impl Iterator<Item = String>,
+) -> anyhow::Result<()> {
+    let command = NixCommand::from_program_and_args(program, args);
     let exit_code = run_command_wrapped(&command).await?;
 
     if !exit_code.success() {

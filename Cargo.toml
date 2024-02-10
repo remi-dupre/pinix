@@ -1,5 +1,6 @@
 [package]
-name = "pix"
+name = "pinix"
+description = " Progress In Nix - Pacman inspired frontend for Nix "
 version = "0.1.0"
 edition = "2021"
 
