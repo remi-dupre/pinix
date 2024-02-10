@@ -1,16 +1,20 @@
 use std::rc::Rc;
+use std::time::Instant;
 
+use anyhow::Context;
 use console::style;
 use futures::TryStreamExt;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
+use tokio::io::{AsyncWriteExt, BufWriter};
 
 use crate::action::Action;
 use crate::handlers::builds::handle_new_builds;
 use crate::handlers::debug::DebugHandler;
 use crate::handlers::download::handle_new_download;
 use crate::handlers::message::handle_new_message;
+use crate::handlers::unknown::handle_new_unknown;
 use crate::wrapper::command::NixCommand;
-use crate::wrapper::stream::{StreamedPipes, WrappedLine};
+use crate::wrapper::stream::{OutputStream, StreamedPipes};
 
 #[derive(Eq, PartialEq)]
 pub enum HandlerResult {
@@ -53,12 +57,14 @@ impl<'s> State<'s> {
             handlers_len: 0,
         };
 
-        if cmd.args.pix_debug {
-            state.plug(DebugHandler::new(&state));
+        if cmd.args.debug {
+            let debug_bar = DebugHandler::new(&mut state);
+            state.plug(debug_bar);
         }
 
         state.plug(handle_new_builds);
         state.plug(handle_new_download);
+        state.plug(handle_new_unknown);
         state.plug(handle_new_message);
         state
     }
@@ -89,7 +95,8 @@ impl<'s> State<'s> {
                         .expect("invalid template"),
                 )
                 .with_prefix(format!("Running {}", self.cmd.program.as_str()))
-                .with_message("·".repeat(512));
+                .with_message("·".repeat(512))
+                .with_finish(ProgressFinish::AndClear);
 
             let separator = self.multi_progress.insert(0, separator);
             separator.set_length(0);
@@ -115,23 +122,54 @@ pub async fn monitor_logs(
     log_stream: impl StreamedPipes<'_>,
 ) -> anyhow::Result<()> {
     let mut state = State::new(cmd);
+    let start_time = Instant::now();
+
+    let mut record_file = {
+        if let Some(path) = &cmd.args.record {
+            let file = tokio::fs::File::create(&path)
+                .await
+                .context("could not open record file")?;
+
+            Some(BufWriter::new(file))
+        } else {
+            None
+        }
+    };
 
     log_stream
-        .try_for_each(|line| {
-            match line {
-                WrappedLine::StdOut(line) => state.println(line),
-                WrappedLine::StdErr(line) => {
+        .try_fold(&mut record_file, move |mut record_file, (output, line)| {
+            let elapsed = start_time.elapsed();
+
+            match output {
+                OutputStream::StdOut => state.println(&line),
+                OutputStream::StdErr => {
                     if let Some(action_str) = line.strip_prefix("@nix ") {
                         let action =
                             serde_json::from_str(action_str).expect("invalid JSON in action");
                         state.handle(&action);
                     } else {
-                        state.println(line);
+                        state.println(&line);
                     }
                 }
             };
 
-            async { Ok(()) }
+            async move {
+                if let Some(file) = &mut record_file {
+                    let line = format!("{} {:07} {line}\n", output.as_str(), elapsed.as_millis());
+
+                    file.write_all(line.as_bytes())
+                        .await
+                        .context("error writing record file")?;
+                }
+
+                Ok(record_file)
+            }
         })
-        .await
+        .await?;
+
+    if let Some(mut file) = record_file {
+        file.flush().await.context("error saving record file")?;
+    }
+
+    Ok(())
 }

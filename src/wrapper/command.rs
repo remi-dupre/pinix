@@ -1,4 +1,5 @@
 use std::iter;
+use std::path::PathBuf;
 use std::process::Stdio;
 
 use anyhow::Context;
@@ -9,6 +10,27 @@ use tokio::process;
 use crate::state::monitor_logs;
 
 use super::stream::stream_child_output;
+
+#[derive(Debug, clap::Parser)]
+#[command(
+    disable_help_flag = true,
+    allow_hyphen_values = true,
+    trailing_var_arg = true
+)]
+/// Wrap a Nix command to display rich logs while it is running.
+pub struct Args {
+    #[clap(long = "pix-help", help = "Display this help message")]
+    pub help: bool,
+
+    #[arg(long = "pix-debug", help = "Display a debug bar")]
+    pub debug: bool,
+
+    #[arg(long = "pix-record", help = "Save timestamped logs to a file")]
+    pub record: Option<PathBuf>,
+
+    #[clap(help = "Arguments forwared to actual Nix command")]
+    pub ext: Vec<String>,
+}
 
 #[derive(Debug)]
 pub enum WrappedProgram {
@@ -47,23 +69,6 @@ impl std::fmt::Display for WrappedProgram {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
     }
-}
-
-#[derive(Debug, clap::Parser)]
-#[command(
-    disable_help_flag = true,
-    allow_hyphen_values = true,
-    trailing_var_arg = true
-)]
-pub struct Args {
-    #[clap(long, help = "Display this help message")]
-    pub pix_help: bool,
-
-    #[arg(long, help = "Display a debug bar")]
-    pub pix_debug: bool,
-
-    #[clap(help = "Arguments forwared to actual Nix command")]
-    pub ext: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -118,7 +123,7 @@ impl NixCommand {
     ) -> Self {
         let args = Args::parse_from(iter::once(program.to_string()).chain(args));
 
-        if args.pix_help {
+        if args.help {
             Args::command()
                 .print_help()
                 .expect("failed to display help message");

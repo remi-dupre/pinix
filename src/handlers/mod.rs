@@ -3,3 +3,4 @@ pub mod debug;
 pub mod download;
 pub mod logs;
 pub mod message;
+pub mod unknown;
