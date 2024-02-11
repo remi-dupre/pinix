@@ -1,9 +1,13 @@
 # To Do
 
 - autocomplete
+- share download bar
+- light shell scripts for wrapper commands
 - option : record
 - option : debug mode
 - option : configure truncation
+- perf : no more untagged enums
+- perf : precise event subscription
 
 # Done
 

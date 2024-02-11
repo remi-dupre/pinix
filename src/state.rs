@@ -10,7 +10,7 @@ use tokio::io::{AsyncWriteExt, BufWriter};
 use crate::action::Action;
 use crate::handlers::builds::handle_new_builds;
 use crate::handlers::debug::DebugHandler;
-use crate::handlers::download::handle_new_download;
+use crate::handlers::downloads::handle_new_download;
 use crate::handlers::message::handle_new_message;
 use crate::handlers::unknown::handle_new_unknown;
 use crate::wrapper::command::NixCommand;

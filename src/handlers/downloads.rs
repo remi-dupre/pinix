@@ -56,7 +56,7 @@ impl Handler for WaitForTransfer {
                 parent,
                 ..
             } if *parent == self.copy_id => {
-                state.plug(Transfering {
+                state.plug(Transfer {
                     transfer_id: *id,
                     progress: None,
                     path: std::mem::take(&mut self.path),
@@ -73,13 +73,13 @@ impl Handler for WaitForTransfer {
 }
 
 /// Keep track of transfer
-struct Transfering {
+struct Transfer {
     transfer_id: BuildStepId,
     progress: Option<ProgressBar>,
     path: String,
 }
 
-impl Handler for Transfering {
+impl Handler for Transfer {
     fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             Action::Result {
