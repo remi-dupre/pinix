@@ -5,7 +5,7 @@ use indicatif::ProgressBar;
 
 use crate::action::{Action, BuildStepId, ResultFields};
 use crate::state::{Handler, HandlerResult, State};
-use crate::style::LOGS_WINDOW_STYLE;
+use crate::style::template_style;
 
 #[derive(Default)]
 pub struct LogHandler {
@@ -60,6 +60,8 @@ impl Handler for LogHandler {
 
         HandlerResult::Continue
     }
+
+    fn resize(&mut self, _state: &mut State, _size: u16) {}
 }
 
 pub struct LogsWindow {
@@ -77,7 +79,12 @@ impl LogsWindow {
             let next = state.multi_progress.insert_after(
                 prev,
                 ProgressBar::new_spinner()
-                    .with_style(LOGS_WINDOW_STYLE.clone())
+                    .with_style(template_style(
+                        state.term_size,
+                        false,
+                        |_| style("{prefix} {wide_msg}").dim(),
+                        |_| "",
+                    ))
                     .with_prefix(prefix),
             );
 
@@ -96,6 +103,12 @@ impl LogsWindow {
 
         if let Some(last_line) = self.log_lines.last() {
             last_line.set_message(msg);
+        }
+    }
+
+    pub fn resize(&self, _size: u16) {
+        for line in &self.log_lines {
+            line.tick();
         }
     }
 }

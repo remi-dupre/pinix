@@ -8,33 +8,33 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
 use crate::handlers::logs::{LogHandler, LogsWindow};
 use crate::state::{Handler, HandlerResult, State};
-use crate::style::{
-    format_build_target, format_short_build_target, MultiBar, PROGRESS_STYLE, PROGRESS_WIDTH,
-    SPINNER_FREQ, SPINNER_STR,
-};
+use crate::style::{format_build_target, format_short_build_target, template_style, MultiBar};
 
-pub fn builds_progress_style(done: u64, expected: u64, running: u64) -> ProgressStyle {
-    let adv1 = (PROGRESS_WIDTH * done + expected / 2)
-        .checked_div(expected)
-        .unwrap_or(0);
+pub fn builds_progress_style(size: u16, done: u64, expected: u64, running: u64) -> ProgressStyle {
+    template_style(
+        size,
+        true,
+        |size| match size {
+            0..=50 => "{prefix} {wide_msg}",
+            _ => "{prefix} {wide_msg} {pos:>5}/{len:<6}",
+        },
+        |size| {
+            let size = u64::from(size);
 
-    let adv2 = (PROGRESS_WIDTH * (done + running) + expected / 2)
-        .checked_div(expected)
-        .unwrap_or(0);
+            let adv1 = (size * done + expected / 2)
+                .checked_div(expected)
+                .unwrap_or(0);
 
-    let c_pos = "#";
-    let c_run = style("-").blue().bright().to_string();
-    let p = "{spinner} {prefix} {wide_msg} {pos:>5}/{len:<6}";
+            let adv2 = (size * (done + running) + expected / 2)
+                .checked_div(expected)
+                .unwrap_or(0);
 
-    let bar = MultiBar([
-        (c_pos, adv1),
-        (&c_run, adv2 - adv1),
-        (" ", PROGRESS_WIDTH - adv2),
-    ]);
-
-    ProgressStyle::with_template(&format!("{p} [{bar}] {{elapsed:>4}}"))
-        .unwrap()
-        .tick_strings(&SPINNER_STR)
+            let c_pos = "#";
+            let c_run = style("-").blue().bright().to_string();
+            let bar = MultiBar([(c_pos, adv1), (&c_run, adv2 - adv1), (" ", size - adv2)]);
+            format!("[{bar}]")
+        },
+    )
 }
 
 pub fn handle_new_builds(state: &mut State, action: &Action) -> HandlerResult {
@@ -45,18 +45,18 @@ pub fn handle_new_builds(state: &mut State, action: &Action) -> HandlerResult {
     } = action
     {
         let progress = ProgressBar::new_spinner()
-            .with_style(PROGRESS_STYLE.clone())
+            .with_style(builds_progress_style(state.term_size, 0, 0, 0))
             .with_prefix("Build");
 
         let progress = state.add(progress);
         let logs_window = Rc::new(LogsWindow::new(state, &progress, 5));
-        progress.enable_steady_tick(SPINNER_FREQ);
 
         state.plug(Builds {
             id: *id,
             progress,
             builds_formatted: IndexMap::new(),
             logs_window,
+            last_state: [0; 3],
         });
     }
 
@@ -69,6 +69,7 @@ struct Builds {
     progress: ProgressBar,
     builds_formatted: IndexMap<BuildStepId, String>,
     logs_window: Rc<LogsWindow>,
+    last_state: [u64; 3],
 }
 
 impl Builds {
@@ -107,8 +108,14 @@ impl Handler for Builds {
                 id,
                 fields: ResultFields::Progress([done, expected, running, ..]),
             } if *id == self.id => {
-                self.progress
-                    .set_style(builds_progress_style(*done, *expected, *running));
+                self.last_state = [*done, *expected, *running];
+
+                self.progress.set_style(builds_progress_style(
+                    state.term_size,
+                    *done,
+                    *expected,
+                    *running,
+                ));
 
                 self.progress.set_length(*expected);
                 self.progress.set_position(*done);
@@ -124,6 +131,7 @@ impl Handler for Builds {
                     state.println(format!("{icon} Built {nb_built} derivations {detail}"));
                 }
 
+                state.remove_separator();
                 self.progress.finish_and_clear();
                 return HandlerResult::Close;
             }
@@ -132,6 +140,15 @@ impl Handler for Builds {
         }
 
         HandlerResult::Continue
+    }
+
+    fn resize(&mut self, _state: &mut State, size: u16) {
+        self.logs_window.resize(size);
+        let [done, expected, running] = self.last_state;
+
+        self.progress
+            .set_style(builds_progress_style(size, done, expected, running));
+        self.progress.tick();
     }
 }
 
@@ -172,4 +189,6 @@ impl Handler for Build {
 
         HandlerResult::Continue
     }
+
+    fn resize(&mut self, _state: &mut State, _size: u16) {}
 }

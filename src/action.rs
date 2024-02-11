@@ -122,6 +122,6 @@ impl Default for StartFields {
 #[serde(untagged)]
 pub enum ResultFields {
     Progress([u64; 4]),
-    Whatever([u64; 2]),
+    Realise(ActionType, u64),
     Msg([String; 1]),
 }

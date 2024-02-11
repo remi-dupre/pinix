@@ -1,11 +1,23 @@
 use console::style;
-use indicatif::{HumanBytes, ProgressBar};
+use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
 
 use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
+use crate::handlers::logs::LogHandler;
 use crate::state::{Handler, HandlerResult, State};
-use crate::style::{format_build_target, format_short_build_target, DOWNLOAD_STYLE, SPINNER_FREQ};
+use crate::style::{format_build_target, format_short_build_target, template_style};
 
-use super::logs::LogHandler;
+fn build_style(size: u16) -> ProgressStyle {
+    template_style(
+        size,
+        true,
+        |size| match size {
+            0..=50 => "{prefix} {wide_msg}",
+            51..=60 => "{prefix} {wide_msg} {binary_bytes_per_sec:^12}",
+            _ => "{prefix} {wide_msg} {binary_bytes_per_sec:^12} {bytes:^12}",
+        },
+        |size| format!("[{{bar:{size}}}]"),
+    )
+}
 
 pub fn handle_new_download(state: &mut State, action: &Action) -> HandlerResult {
     if let Action::Start {
@@ -42,12 +54,11 @@ impl Handler for WaitForTransfer {
                 ..
             } if *parent == self.copy_id => {
                 let progress = ProgressBar::new_spinner()
-                    .with_style(DOWNLOAD_STYLE.clone())
+                    .with_style(build_style(state.term_size))
                     .with_prefix("Download")
                     .with_message(format_short_build_target(&self.path));
 
                 let progress = state.add(progress);
-                progress.enable_steady_tick(SPINNER_FREQ);
 
                 state.plug(Transfering {
                     transfer_id: *id,
@@ -61,6 +72,8 @@ impl Handler for WaitForTransfer {
             _ => HandlerResult::Continue,
         }
     }
+
+    fn resize(&mut self, _state: &mut State, _size: u16) {}
 }
 
 /// Keep track of transfer
@@ -105,5 +118,9 @@ impl Handler for Transfering {
 
             _ => HandlerResult::Continue,
         }
+    }
+
+    fn resize(&mut self, _state: &mut State, size: u16) {
+        self.progress.set_style(build_style(size))
     }
 }

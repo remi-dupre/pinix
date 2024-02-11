@@ -1,19 +1,19 @@
 use std::cmp::max;
 
 use indicatif::{HumanCount, ProgressBar, ProgressFinish, ProgressStyle};
-use once_cell::sync::Lazy;
 
 use crate::action::Action;
 use crate::state::{Handler, HandlerResult, State};
-use crate::style::PROGRESS_WIDTH;
+use crate::style::template_style;
 
-pub static STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
-    let p = "🔧 {wide_msg} {pos:>5}/{len:<6}";
-
-    ProgressStyle::with_template(&format!("{p} [{{bar:{PROGRESS_WIDTH}}}] {{elapsed:>4}}"))
-        .unwrap()
-        .progress_chars("## ")
-});
+fn build_style(size: u16) -> ProgressStyle {
+    template_style(
+        size,
+        true,
+        |_| "🔧 {wide_msg} {pos:>5}/{len:<6}",
+        |size| format!("[{{bar:{size}}}]"),
+    )
+}
 
 pub struct DebugHandler {
     progress: ProgressBar,
@@ -23,7 +23,7 @@ pub struct DebugHandler {
 impl DebugHandler {
     pub fn new(state: &mut State) -> Self {
         let progress = ProgressBar::new_spinner()
-            .with_style(STYLE.clone())
+            .with_style(build_style(state.term_size))
             .with_finish(ProgressFinish::Abandon);
 
         let progress = state.add(progress);
@@ -48,5 +48,9 @@ impl Handler for DebugHandler {
 
         self.progress.set_position(handlers_len);
         HandlerResult::Continue
+    }
+
+    fn resize(&mut self, _state: &mut State, size: u16) {
+        self.progress.set_style(build_style(size))
     }
 }

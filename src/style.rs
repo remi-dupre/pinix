@@ -1,49 +1,9 @@
-use std::fmt;
-use std::time::Duration;
+use std::fmt::{self, Display};
 
 use console::style;
 use indicatif::ProgressStyle;
 use once_cell::sync::Lazy;
 use regex::Regex;
-
-pub const PROGRESS_WIDTH: u64 = 30;
-pub const SPINNER_FREQ: Duration = Duration::from_millis(100);
-
-pub static SPINNER_STR: Lazy<Vec<&str>> = Lazy::new(|| {
-    static AS_STRINGS: Lazy<Vec<String>> = Lazy::new(|| {
-        let mut tick_strings: Vec<_> = "⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈⠈"
-            .chars()
-            .map(|c| style(c).blue().to_string())
-            .collect();
-
-        tick_strings.push(style("✓").green().to_string());
-        tick_strings
-    });
-
-    AS_STRINGS.iter().map(String::as_str).collect()
-});
-
-pub static PROGRESS_STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
-    let p = "{spinner} {prefix} {wide_msg} {pos:>5}/{len:<6}";
-
-    ProgressStyle::with_template(&format!("{p} [{{bar:{PROGRESS_WIDTH}}}] {{elapsed:>4}}"))
-        .unwrap()
-        .progress_chars("## ")
-        .tick_strings(&SPINNER_STR)
-});
-
-pub static DOWNLOAD_STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
-    let p = "{spinner} {prefix} {wide_msg} {binary_bytes_per_sec:^12} {bytes:^12}";
-
-    ProgressStyle::with_template(&format!("{p} [{{bar:{PROGRESS_WIDTH}}}] {{elapsed:>4}}",))
-        .unwrap()
-        .progress_chars("## ")
-        .tick_strings(&SPINNER_STR)
-});
-
-pub static LOGS_WINDOW_STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
-    ProgressStyle::with_template(&style("{prefix} {wide_msg}").dim().to_string()).unwrap()
-});
 
 static MATCH_BUILD_TARGET: Lazy<Regex> = Lazy::new(|| {
     Regex::new(concat!(
@@ -114,4 +74,37 @@ impl<const N: usize> fmt::Display for MultiBar<'_, N> {
 
         Ok(())
     }
+}
+
+pub fn template_style<R1, R2>(
+    size: u16,
+    show_duration: bool,
+    main: impl FnOnce(u16) -> R1,
+    bar: impl FnOnce(u16) -> R2,
+) -> ProgressStyle
+where
+    R1: Display,
+    R2: Display,
+{
+    let bar_size = size / 3;
+
+    let (main_size, elapsed) = {
+        if size > 90 {
+            let duration_template = {
+                if show_duration {
+                    style(" {elapsed:<5}").dim()
+                } else {
+                    style("      ")
+                }
+            };
+
+            ((size - bar_size - 6), duration_template)
+        } else {
+            ((size - bar_size), style(""))
+        }
+    };
+
+    ProgressStyle::with_template(&format!("{}{}{elapsed}", main(main_size), bar(bar_size)))
+        .expect("invalid template")
+        .progress_chars("## ")
 }

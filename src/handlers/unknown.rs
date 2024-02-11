@@ -1,17 +1,15 @@
+use std::time::Duration;
+
 use indicatif::{ProgressBar, ProgressFinish, ProgressStyle};
-use once_cell::sync::Lazy;
 
 use crate::action::{Action, ActionType, BuildStepId};
 use crate::handlers::logs::LogHandler;
 use crate::state::{Handler, HandlerResult, State};
-use crate::style::{SPINNER_FREQ, SPINNER_STR};
+use crate::style::template_style;
 
-static STYLE: Lazy<ProgressStyle> = Lazy::new(|| {
-    ProgressStyle::with_template("{spinner} {wide_msg} {elapsed}")
-        .unwrap()
-        .progress_chars("## ")
-        .tick_strings(&SPINNER_STR)
-});
+fn build_style(size: u16) -> ProgressStyle {
+    template_style(size, true, |_| "{msg:!} {spinner} {wide_bar}", |_| "").tick_chars("…  ")
+}
 
 pub fn handle_new_unknown(state: &mut State, action: &Action) -> HandlerResult {
     if let Action::Start {
@@ -31,7 +29,7 @@ pub fn handle_new_unknown(state: &mut State, action: &Action) -> HandlerResult {
 
 struct Unknown {
     id: BuildStepId,
-    _progress: ProgressBar,
+    progress: ProgressBar,
 }
 
 impl Unknown {
@@ -41,17 +39,14 @@ impl Unknown {
         let message = format!("{first_char}{}", &text[first_char_len..]);
 
         let progress = ProgressBar::new_spinner()
-            .with_style(STYLE.clone())
+            .with_style(build_style(state.term_size))
             .with_message(message)
             .with_finish(ProgressFinish::AndClear);
 
         let progress = state.add(progress);
-        progress.enable_steady_tick(SPINNER_FREQ);
+        progress.enable_steady_tick(Duration::from_secs(1));
 
-        Self {
-            id,
-            _progress: progress,
-        }
+        Self { id, progress }
     }
 }
 
@@ -62,5 +57,9 @@ impl Handler for Unknown {
         } else {
             HandlerResult::Continue
         }
+    }
+
+    fn resize(&mut self, _state: &mut State, size: u16) {
+        self.progress.set_style(build_style(size))
     }
 }

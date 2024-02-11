@@ -24,20 +24,24 @@ pub enum HandlerResult {
 
 pub trait Handler {
     fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult;
+    fn resize(&mut self, _state: &mut State, _size: u16);
 }
 
 impl<F: FnMut(&mut State, &Action) -> HandlerResult> Handler for F {
     fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         self(state, action)
     }
+
+    fn resize(&mut self, _state: &mut State, _size: u16) {}
 }
 
 pub struct State<'s> {
     pub cmd: &'s NixCommand,
     pub multi_progress: Rc<MultiProgress>,
     pub handlers: Vec<Box<dyn Handler + 's>>,
+    pub term_size: u16,
 
-    // First line
+    // First displayed line, only appears when other lines do
     separator: Option<ProgressBar>,
 
     /// Keep track of the handler could while applying them. Usefull for
@@ -47,12 +51,14 @@ pub struct State<'s> {
 
 impl<'s> State<'s> {
     pub fn new(cmd: &'s NixCommand) -> Self {
+        let (_, term_size) = console::Term::stderr().size();
         let multi_progress = Rc::new(MultiProgress::default());
 
         let mut state = Self {
             cmd,
             multi_progress,
             handlers: Vec::new(),
+            term_size,
             separator: None,
             handlers_len: 0,
         };
@@ -74,6 +80,23 @@ impl<'s> State<'s> {
     pub fn handle(&mut self, action: &Action) {
         // Move out handlers to allow borrowing self
         let mut prev_handlers = std::mem::take(&mut self.handlers);
+
+        // Check if terminal was resized
+        let (_, term_size) = console::Term::stderr().size();
+
+        if term_size != self.term_size {
+            self.term_size = term_size;
+
+            for handler in &mut prev_handlers {
+                handler.resize(self, term_size)
+            }
+        }
+
+        if let Some(separator) = &self.separator {
+            separator.tick();
+        }
+
+        // Applies handles
         prev_handlers.retain_mut(|h| h.handle(self, action) == HandlerResult::Continue);
 
         // Put back remaining handlers
