@@ -25,6 +25,12 @@ pub struct Args {
     #[arg(long = "pix-debug", help = "Display a debug bar")]
     pub debug: bool,
 
+    #[arg(
+        long = "pix-log-downloads",
+        help = "Display a log line when a download is finished"
+    )]
+    pub log_downloads: bool,
+
     #[arg(long = "pix-record", help = "Save timestamped logs to a file")]
     pub record: Option<PathBuf>,
 

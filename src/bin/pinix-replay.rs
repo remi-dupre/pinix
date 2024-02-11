@@ -1,6 +1,6 @@
 use std::fs::File;
 
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -37,6 +37,8 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let start_time = Instant::now();
     let file = File::open(args.path).context("could not open record file")?;
+    let mut stdout = std::io::stdout();
+    let mut stderr = std::io::stderr();
 
     for line in BufReader::new(file).lines() {
         let line = line.context("could not read line from file")?;
@@ -58,8 +60,20 @@ fn main() -> anyhow::Result<()> {
         sleep(Duration::from_micros(to_wait as _));
 
         match output {
-            OutputStream::StdOut => println!("{line}"),
-            OutputStream::StdErr => eprintln!("{line}"),
+            OutputStream::StdOut => {
+                stdout
+                    .write_all(format!("{line}\n").as_bytes())
+                    .context("couldn't write to stdout")?;
+
+                stdout.flush().context("couldn't flush stdout")?;
+            }
+            OutputStream::StdErr => {
+                stderr
+                    .write_all(format!("{line}\n").as_bytes())
+                    .context("couldn't write to stderr")?;
+
+                stderr.flush().context("couldn't flush stderr")?;
+            }
         }
     }
 
