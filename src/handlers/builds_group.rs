@@ -3,36 +3,24 @@ use std::rc::Rc;
 use console::style;
 use indexmap::IndexMap;
 use indicatif::{ProgressBar, ProgressStyle};
+use once_cell::sync::Lazy;
 
 use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
 use crate::handlers::logs::{LogHandler, LogsWindow};
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_short_build_target, template_style, MultiBar};
 
-pub fn get_style(size: u16, done: u64, expected: u64, running: u64) -> ProgressStyle {
+static C_RUN: Lazy<String> = Lazy::new(|| style("-").blue().bright().to_string());
+
+pub fn get_style(size: u16) -> ProgressStyle {
     template_style(
         size,
         true,
         |size| match size {
-            0..=50 => "{prefix} {wide_msg}",
-            _ => "{prefix} {wide_msg} {pos:>5}/{len:<6}",
+            0..=50 => "Build {wide_msg}",
+            _ => "Build {wide_msg} {pos:>5}/{len:<6}",
         },
-        |size| {
-            let size = u64::from(size);
-
-            let adv1 = (size * done + expected / 2)
-                .checked_div(expected)
-                .unwrap_or(0);
-
-            let adv2 = (size * (done + running) + expected / 2)
-                .checked_div(expected)
-                .unwrap_or(0);
-
-            let c_pos = "#";
-            let c_run = style("-").blue().bright().to_string();
-            let bar = MultiBar([(c_pos, adv1), (&c_run, adv2 - adv1), (" ", size - adv2)]);
-            format!("[{bar}]")
-        },
+        |_| "[{prefix}]",
     )
 }
 
@@ -43,10 +31,7 @@ pub fn handle_new_builds_group(state: &mut State, action: &Action) -> HandlerRes
         ..
     } = action
     {
-        let progress = ProgressBar::new_spinner()
-            .with_style(get_style(state.term_size, 0, 0, 0))
-            .with_prefix("Build");
-
+        let progress = ProgressBar::new_spinner().with_style(get_style(state.term_size));
         let progress = state.add(progress);
         let logs_window = Rc::new(LogsWindow::new(state, &progress, 5));
 
@@ -75,6 +60,27 @@ impl BuildGroup {
     fn update_message(&self) {
         let all_builds: Vec<_> = self.builds_formatted.values().map(String::as_str).collect();
         self.progress.set_message(all_builds.join(", "));
+    }
+
+    fn build_bar(&self, size: u16) -> MultiBar<'_, 3> {
+        let size = u64::from(size / 3);
+        let [done, expected, running] = self.last_state;
+
+        let adv1 = (size * done + expected / 2)
+            .checked_div(expected)
+            .unwrap_or(0);
+
+        let adv2 = (size * (done + running) + expected / 2)
+            .checked_div(expected)
+            .unwrap_or(0);
+
+        let c_pos = "#";
+
+        MultiBar([
+            (c_pos, adv1),
+            (C_RUN.as_str(), adv2 - adv1),
+            (" ", size - adv2),
+        ])
     }
 }
 
@@ -109,7 +115,7 @@ impl Handler for BuildGroup {
                 self.last_state = [*done, *expected, *running];
 
                 self.progress
-                    .set_style(get_style(state.term_size, *done, *expected, *running));
+                    .set_prefix(self.build_bar(state.term_size).to_string());
 
                 self.progress.set_length(*expected);
                 self.progress.set_position(*done);
@@ -138,11 +144,8 @@ impl Handler for BuildGroup {
 
     fn resize(&mut self, _state: &mut State, size: u16) {
         self.logs_window.resize(size);
-        let [done, expected, running] = self.last_state;
-
-        self.progress
-            .set_style(get_style(size, done, expected, running));
-
+        self.progress.set_style(get_style(size));
+        self.progress.set_prefix(self.build_bar(size).to_string());
         self.progress.tick();
     }
 }

@@ -3,36 +3,24 @@ use std::collections::HashMap;
 use console::style;
 use indexmap::IndexMap;
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
+use once_cell::sync::Lazy;
 
 use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_short_build_target, template_style, MultiBar};
 
-fn get_style(size: u16, done: u64, expected: u64, running: u64) -> ProgressStyle {
+static C_RUN: Lazy<String> = Lazy::new(|| style("-").blue().bright().to_string());
+
+fn get_style(size: u16) -> ProgressStyle {
     template_style(
         size,
         true,
         |size| match size {
-            0..=50 => "{prefix} {wide_msg}",
-            51..=60 => "{prefix} {wide_msg} {binary_bytes_per_sec:^12}",
-            _ => "{prefix} {wide_msg} {binary_bytes_per_sec:^12} {bytes:^12}",
+            0..=50 => "{wide_msg}",
+            51..=60 => "{wide_msg} {binary_bytes_per_sec:^12}",
+            _ => "{wide_msg} {binary_bytes_per_sec:^12} {bytes:^12}",
         },
-        |size| {
-            let size = u64::from(size);
-
-            let adv1 = (size * done + expected / 2)
-                .checked_div(expected)
-                .unwrap_or(0);
-
-            let adv2 = (size * running + expected / 2)
-                .checked_div(expected)
-                .unwrap_or(0);
-
-            let c_pos = "#";
-            let c_run = style("-").blue().bright().to_string();
-            let bar = MultiBar([(c_pos, adv1), (&c_run, adv2 - adv1), (" ", size - adv2)]);
-            format!("[{bar}]")
-        },
+        |_| "[{prefix}]",
     )
 }
 
@@ -63,7 +51,7 @@ struct DownloadsGroup {
 
 impl DownloadsGroup {
     fn new(id: BuildStepId, state: &mut State) -> Self {
-        let progress = ProgressBar::new_spinner().with_style(get_style(state.term_size, 0, 0, 0));
+        let progress = ProgressBar::new_spinner().with_style(get_style(state.term_size));
 
         Self {
             id,
@@ -92,29 +80,44 @@ impl DownloadsGroup {
         self.state_copy.values().map(|&[done, ..]| done).sum()
     }
 
+    fn build_bar(&self, size: u16) -> MultiBar<3> {
+        let size = u64::from(size / 3);
+        let done = self.get_done();
+        let expected = self.max_transfer;
+        let running = self.get_running();
+
+        let adv1 = (size * done + expected / 2)
+            .checked_div(expected)
+            .unwrap_or(0);
+
+        let adv2 = (size * running + expected / 2)
+            .checked_div(expected)
+            .unwrap_or(0);
+
+        let c_pos = "#";
+        MultiBar([
+            (c_pos, adv1),
+            (C_RUN.as_str(), adv2 - adv1),
+            (" ", size - adv2),
+        ])
+    }
+
     fn redraw(&self, size: u16) {
-        let message = self
+        let pkgs = self
             .current_copies
             .values()
             .map(String::as_str)
             .collect::<Vec<_>>()
             .join(", ");
 
-        self.progress.set_style(get_style(
-            size,
-            self.get_done(),
-            self.max_transfer,
-            self.get_running(),
-        ));
-
-        self.progress.set_prefix(format!(
-            "Downloaded ({}/{})",
+        self.progress.set_message(format!(
+            "Downloaded ({}/{}) {pkgs}",
             self.state_self[0], self.state_self[1],
         ));
 
+        self.progress.set_prefix(self.build_bar(size).to_string());
         self.progress.set_position(self.get_done());
         self.progress.set_length(self.max_transfer);
-        self.progress.set_message(message);
     }
 }
 
@@ -183,7 +186,7 @@ impl Handler for DownloadsGroup {
                     );
 
                     let msg_stats = style(format!(
-                        " ({} downloaded, {} unpacked, {:.0?})",
+                        " ({} downloaded / {} unpacked, {:.0?})",
                         HumanBytes(self.get_done()),
                         HumanBytes(self.get_unpacked()),
                         self.progress.duration(),
@@ -193,9 +196,9 @@ impl Handler for DownloadsGroup {
 
                     state.println(msg_main + &msg_stats);
                     self.progress.finish_and_clear();
-
-                    return HandlerResult::Close;
                 }
+
+                return HandlerResult::Close;
             }
 
             Action::Stop { id } => {
@@ -210,6 +213,8 @@ impl Handler for DownloadsGroup {
     }
 
     fn resize(&mut self, _state: &mut State, size: u16) {
+        self.progress.set_style(get_style(size));
+        self.progress.set_prefix(self.build_bar(size).to_string());
         self.redraw(size);
     }
 }
