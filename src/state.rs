@@ -8,9 +8,11 @@ use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
 use tokio::io::{AsyncWriteExt, BufWriter};
 
 use crate::action::Action;
-use crate::handlers::builds::handle_new_builds;
+use crate::handlers::build::handle_new_build;
+use crate::handlers::builds_group::handle_new_builds_group;
 use crate::handlers::debug::DebugHandler;
-use crate::handlers::downloads::handle_new_download;
+use crate::handlers::download::handle_new_download;
+use crate::handlers::downloads_group::handle_new_downloads_group;
 use crate::handlers::message::handle_new_message;
 use crate::handlers::unknown::handle_new_unknown;
 use crate::wrapper::command::NixCommand;
@@ -68,10 +70,12 @@ impl<'s> State<'s> {
             state.plug(debug_bar);
         }
 
-        state.plug(handle_new_builds);
+        state.plug(handle_new_build);
+        state.plug(handle_new_builds_group);
         state.plug(handle_new_download);
-        state.plug(handle_new_unknown);
+        state.plug(handle_new_downloads_group);
         state.plug(handle_new_message);
+        state.plug(handle_new_unknown);
         state
     }
 }

@@ -9,7 +9,7 @@ use crate::style::{format_build_target, format_short_build_target, template_styl
 /// Min size of the package for a progressbar to be displayed
 const MIN_PROGRESS_PAYLOAD: u64 = 10 * 1024 * 1024; // 1MB
 
-fn build_style(size: u16) -> ProgressStyle {
+fn get_style(size: u16) -> ProgressStyle {
     template_style(
         size,
         true,
@@ -91,7 +91,7 @@ impl Handler for Transfer {
                     if *expected > 0 {
                         if *expected >= MIN_PROGRESS_PAYLOAD {
                             let pb = ProgressBar::new(*expected)
-                                .with_style(build_style(state.term_size))
+                                .with_style(get_style(state.term_size))
                                 .with_prefix("Download")
                                 .with_message(format_short_build_target(&self.path));
                             Some(state.add(pb))
@@ -116,7 +116,7 @@ impl Handler for Transfer {
                     if let Some(progress) = &self.progress {
                         let msg_main = format!(
                             "{} Downloaded {}",
-                            style("⬇").green(),
+                            style("⭣").green(),
                             format_build_target(&self.path),
                         );
 
@@ -142,7 +142,7 @@ impl Handler for Transfer {
 
     fn resize(&mut self, _state: &mut State, size: u16) {
         if let Some(progress) = &self.progress {
-            progress.set_style(build_style(size));
+            progress.set_style(get_style(size));
         }
     }
 }

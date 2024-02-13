@@ -8,6 +8,7 @@
 - option : configure truncation
 - perf : no more untagged enums
 - perf : precise event subscription
+- fix : shrinking terminal f..ks up old logs
 
 # Done
 

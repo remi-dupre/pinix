@@ -1,6 +1,8 @@
-pub mod builds;
+pub mod build;
+pub mod builds_group;
 pub mod debug;
-pub mod downloads;
+pub mod download;
+pub mod downloads_group;
 pub mod logs;
 pub mod message;
 pub mod unknown;

@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use std::time::Instant;
 
 use console::style;
 use indexmap::IndexMap;
@@ -8,9 +7,9 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
 use crate::handlers::logs::{LogHandler, LogsWindow};
 use crate::state::{Handler, HandlerResult, State};
-use crate::style::{format_build_target, format_short_build_target, template_style, MultiBar};
+use crate::style::{format_short_build_target, template_style, MultiBar};
 
-pub fn builds_progress_style(size: u16, done: u64, expected: u64, running: u64) -> ProgressStyle {
+pub fn get_style(size: u16, done: u64, expected: u64, running: u64) -> ProgressStyle {
     template_style(
         size,
         true,
@@ -37,7 +36,7 @@ pub fn builds_progress_style(size: u16, done: u64, expected: u64, running: u64) 
     )
 }
 
-pub fn handle_new_builds(state: &mut State, action: &Action) -> HandlerResult {
+pub fn handle_new_builds_group(state: &mut State, action: &Action) -> HandlerResult {
     if let Action::Start {
         action_type: ActionType::Builds,
         id,
@@ -45,13 +44,13 @@ pub fn handle_new_builds(state: &mut State, action: &Action) -> HandlerResult {
     } = action
     {
         let progress = ProgressBar::new_spinner()
-            .with_style(builds_progress_style(state.term_size, 0, 0, 0))
+            .with_style(get_style(state.term_size, 0, 0, 0))
             .with_prefix("Build");
 
         let progress = state.add(progress);
         let logs_window = Rc::new(LogsWindow::new(state, &progress, 5));
 
-        state.plug(Builds {
+        state.plug(BuildGroup {
             id: *id,
             progress,
             builds_formatted: IndexMap::new(),
@@ -64,7 +63,7 @@ pub fn handle_new_builds(state: &mut State, action: &Action) -> HandlerResult {
 }
 
 /// Keep track of current group of builds
-struct Builds {
+struct BuildGroup {
     id: BuildStepId,
     progress: ProgressBar,
     builds_formatted: IndexMap<BuildStepId, String>,
@@ -72,14 +71,14 @@ struct Builds {
     last_state: [u64; 3],
 }
 
-impl Builds {
+impl BuildGroup {
     fn update_message(&self) {
         let all_builds: Vec<_> = self.builds_formatted.values().map(String::as_str).collect();
         self.progress.set_message(all_builds.join(", "));
     }
 }
 
-impl Handler for Builds {
+impl Handler for BuildGroup {
     fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             // New build
@@ -93,7 +92,6 @@ impl Handler for Builds {
                     .insert(*id, format_short_build_target(target));
 
                 self.update_message();
-                state.plug(Build::new(*id, target.to_string()));
                 state.plug(LogHandler::new(*id).with_logs_window(self.logs_window.clone()));
             }
 
@@ -110,12 +108,8 @@ impl Handler for Builds {
             } if *id == self.id => {
                 self.last_state = [*done, *expected, *running];
 
-                self.progress.set_style(builds_progress_style(
-                    state.term_size,
-                    *done,
-                    *expected,
-                    *running,
-                ));
+                self.progress
+                    .set_style(get_style(state.term_size, *done, *expected, *running));
 
                 self.progress.set_length(*expected);
                 self.progress.set_position(*done);
@@ -147,48 +141,8 @@ impl Handler for Builds {
         let [done, expected, running] = self.last_state;
 
         self.progress
-            .set_style(builds_progress_style(size, done, expected, running));
+            .set_style(get_style(size, done, expected, running));
+
         self.progress.tick();
     }
-}
-
-/// Keep track of a single build
-struct Build {
-    id: BuildStepId,
-    target: String,
-    start: Instant,
-}
-
-impl Build {
-    fn new(id: BuildStepId, target: String) -> Self {
-        Self {
-            id,
-            target,
-            start: Instant::now(),
-        }
-    }
-}
-
-impl Handler for Build {
-    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
-        match action {
-            Action::Stop { id } if *id == self.id => {
-                let icon = style("✓").green();
-                let detail = style(format!("({:.0?})", self.start.elapsed())).dim();
-
-                state.println(format!(
-                    "{icon} Built {} {detail}",
-                    format_build_target(&self.target)
-                ));
-
-                return HandlerResult::Close;
-            }
-
-            _ => {}
-        }
-
-        HandlerResult::Continue
-    }
-
-    fn resize(&mut self, _state: &mut State, _size: u16) {}
 }
