@@ -146,6 +146,5 @@ impl Handler for BuildGroup {
         self.logs_window.resize(size);
         self.progress.set_style(get_style(size));
         self.progress.set_prefix(self.build_bar(size).to_string());
-        self.progress.tick();
     }
 }

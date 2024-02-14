@@ -4,11 +4,12 @@ use indicatif::{ProgressBar, ProgressFinish, ProgressStyle};
 
 use crate::action::{Action, ActionType, BuildStepId};
 use crate::handlers::logs::LogHandler;
+use crate::indicatif_ext::ProgressBarExt;
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::template_style;
 
 fn build_style(size: u16) -> ProgressStyle {
-    template_style(size, true, |_| "{msg:!} {spinner} {wide_bar}", |_| "").tick_chars("…  ")
+    template_style(size, true, |_| "{msg} {spinner} {wide_bar}", |_| "").tick_chars("…  ")
 }
 
 pub fn handle_new_unknown(state: &mut State, action: &Action) -> HandlerResult {
@@ -44,7 +45,7 @@ impl Unknown {
             .with_finish(ProgressFinish::AndClear);
 
         let progress = state.add(progress);
-        progress.enable_steady_tick(Duration::from_secs(1));
+        progress.spawn_steady_tick(Duration::from_secs(1));
 
         Self { id, progress }
     }

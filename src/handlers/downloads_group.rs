@@ -80,8 +80,8 @@ impl DownloadsGroup {
         self.state_copy.values().map(|&[done, ..]| done).sum()
     }
 
-    fn build_bar(&self, size: u16) -> MultiBar<3> {
-        let size = u64::from(size / 3);
+    fn update_bar(&self, term_size: u16) {
+        let size = u64::from(term_size / 3);
         let done = self.get_done();
         let expected = self.max_transfer;
         let running = self.get_running();
@@ -95,14 +95,18 @@ impl DownloadsGroup {
             .unwrap_or(0);
 
         let c_pos = "#";
-        MultiBar([
-            (c_pos, adv1),
-            (C_RUN.as_str(), adv2 - adv1),
-            (" ", size - adv2),
-        ])
+
+        self.progress.set_prefix(
+            MultiBar([
+                (c_pos, adv1),
+                (C_RUN.as_str(), adv2 - adv1),
+                (" ", size - adv2),
+            ])
+            .to_string(),
+        );
     }
 
-    fn redraw(&self, size: u16) {
+    fn update_message(&self) {
         let pkgs = self
             .current_copies
             .values()
@@ -114,10 +118,6 @@ impl DownloadsGroup {
             "Downloaded ({}/{}) {pkgs}",
             self.state_self[0], self.state_self[1],
         ));
-
-        self.progress.set_prefix(self.build_bar(size).to_string());
-        self.progress.set_position(self.get_done());
-        self.progress.set_length(self.max_transfer);
     }
 }
 
@@ -146,18 +146,21 @@ impl Handler for DownloadsGroup {
             Action::Result {
                 action_type: ActionType::Build,
                 id,
-                fields: ResultFields::Progress(state),
+                fields: ResultFields::Progress(dl_state),
             } => {
                 if *id == self.id {
-                    self.state_self = *state;
+                    self.state_self = *dl_state;
+                    self.update_message();
                 }
 
                 if let Some(copy) = self.state_copy.get_mut(id) {
-                    *copy = *state;
+                    *copy = *dl_state;
                 }
 
                 if let Some(transfer) = self.state_transfer.get_mut(id) {
-                    *transfer = *state;
+                    *transfer = *dl_state;
+                    self.progress.set_position(self.get_done());
+                    self.update_bar(state.term_size);
                 }
             }
 
@@ -175,6 +178,8 @@ impl Handler for DownloadsGroup {
                 ..
             } => {
                 self.max_transfer = *max_transfer;
+                self.progress.set_length(self.max_transfer);
+                self.update_bar(state.term_size);
             }
 
             Action::Stop { id } if *id == self.id => {
@@ -198,23 +203,23 @@ impl Handler for DownloadsGroup {
                     self.progress.finish_and_clear();
                 }
 
+                self.progress.finish_and_clear();
                 return HandlerResult::Close;
             }
 
             Action::Stop { id } => {
                 self.current_copies.shift_remove(id);
+                self.update_message();
             }
 
             _ => {}
         }
 
-        self.redraw(state.term_size);
         HandlerResult::Continue
     }
 
     fn resize(&mut self, _state: &mut State, size: u16) {
         self.progress.set_style(get_style(size));
-        self.progress.set_prefix(self.build_bar(size).to_string());
-        self.redraw(size);
+        self.update_bar(size);
     }
 }
