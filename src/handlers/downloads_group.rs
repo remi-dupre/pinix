@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use console::style;
 use indexmap::IndexMap;
@@ -31,7 +32,7 @@ pub fn handle_new_downloads_group(state: &mut State, action: &Action) -> Handler
         ..
     } = action
     {
-        let handler = DownloadsGroup::new(*id, state);
+        let handler = DownloadsGroup::new(*id);
         state.plug(handler);
     }
 
@@ -40,7 +41,7 @@ pub fn handle_new_downloads_group(state: &mut State, action: &Action) -> Handler
 
 struct DownloadsGroup {
     id: BuildStepId,
-    progress: ProgressBar,
+    progress: Option<ProgressBar>,
     current_copies: IndexMap<BuildStepId, String>,
     state_copy: HashMap<BuildStepId, [u64; 4]>,
     state_transfer: HashMap<BuildStepId, [u64; 4]>,
@@ -50,12 +51,10 @@ struct DownloadsGroup {
 }
 
 impl DownloadsGroup {
-    fn new(id: BuildStepId, state: &mut State) -> Self {
-        let progress = ProgressBar::new_spinner().with_style(get_style(state.term_size));
-
+    fn new(id: BuildStepId) -> Self {
         Self {
             id,
-            progress: state.add(progress),
+            progress: None,
             current_copies: IndexMap::new(),
             state_copy: HashMap::new(),
             state_transfer: HashMap::new(),
@@ -81,6 +80,10 @@ impl DownloadsGroup {
     }
 
     fn update_bar(&self, term_size: u16) {
+        let Some(progress) = &self.progress else {
+            return;
+        };
+
         let size = u64::from(term_size / 3);
         let done = self.get_done();
         let expected = self.max_transfer;
@@ -96,7 +99,7 @@ impl DownloadsGroup {
 
         let c_pos = "#";
 
-        self.progress.set_prefix(
+        progress.set_prefix(
             MultiBar([
                 (c_pos, adv1),
                 (C_RUN.as_str(), adv2 - adv1),
@@ -107,6 +110,10 @@ impl DownloadsGroup {
     }
 
     fn update_message(&self) {
+        let Some(progress) = &self.progress else {
+            return;
+        };
+
         let pkgs = self
             .current_copies
             .values()
@@ -114,15 +121,22 @@ impl DownloadsGroup {
             .collect::<Vec<_>>()
             .join(", ");
 
-        self.progress.set_message(format!(
-            "Downloaded ({}/{}) {pkgs}",
-            self.state_self[0], self.state_self[1],
-        ));
+        let mut msg = format!(
+            "Downloaded {}/{}",
+            style(self.state_self[0]).green(),
+            self.state_self[1],
+        );
+
+        if !pkgs.is_empty() {
+            write!(&mut msg, ": {pkgs}").unwrap();
+        }
+
+        progress.set_message(msg);
     }
 }
 
 impl Handler for DownloadsGroup {
-    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             Action::Start {
                 action_type: ActionType::CopyPath,
@@ -131,8 +145,16 @@ impl Handler for DownloadsGroup {
                 ..
             } => {
                 self.state_copy.insert(*id, [0; 4]);
+
                 self.current_copies
                     .insert(*id, format_short_build_target(path));
+
+                if self.progress.is_none() {
+                    let pb = ProgressBar::new(0).with_style(get_style(state.term_size));
+                    let pb = state.add(pb);
+                    pb.set_length(self.max_transfer);
+                    self.progress = Some(pb);
+                }
             }
 
             Action::Start {
@@ -159,8 +181,11 @@ impl Handler for DownloadsGroup {
 
                 if let Some(transfer) = self.state_transfer.get_mut(id) {
                     *transfer = *dl_state;
-                    self.progress.set_position(self.get_done());
-                    self.update_bar(state.term_size);
+
+                    if let Some(progress) = &self.progress {
+                        progress.set_position(self.get_done());
+                        self.update_bar(state.term_size);
+                    }
                 }
             }
 
@@ -178,12 +203,15 @@ impl Handler for DownloadsGroup {
                 ..
             } => {
                 self.max_transfer = *max_transfer;
-                self.progress.set_length(self.max_transfer);
-                self.update_bar(state.term_size);
+
+                if let Some(progress) = &self.progress {
+                    progress.set_length(self.max_transfer);
+                    self.update_bar(state.term_size);
+                }
             }
 
             Action::Stop { id } if *id == self.id => {
-                if self.state_self[0] > 0 {
+                if let Some(progress) = &self.progress {
                     let msg_main = format!(
                         "{} Downloaded {} derivations",
                         style("⬇").green(),
@@ -194,16 +222,15 @@ impl Handler for DownloadsGroup {
                         " ({} downloaded / {} unpacked, {:.0?})",
                         HumanBytes(self.get_done()),
                         HumanBytes(self.get_unpacked()),
-                        self.progress.duration(),
+                        progress.duration(),
                     ))
                     .dim()
                     .to_string();
 
                     state.println(msg_main + &msg_stats);
-                    self.progress.finish_and_clear();
+                    progress.finish_and_clear();
                 }
 
-                self.progress.finish_and_clear();
                 return HandlerResult::Close;
             }
 
@@ -218,8 +245,10 @@ impl Handler for DownloadsGroup {
         HandlerResult::Continue
     }
 
-    fn resize(&mut self, _state: &mut State, size: u16) {
-        self.progress.set_style(get_style(size));
-        self.update_bar(size);
+    fn on_resize(&mut self, state: &mut State) {
+        if let Some(progress) = &self.progress {
+            progress.set_style(get_style(state.term_size));
+            self.update_bar(state.term_size);
+        }
     }
 }

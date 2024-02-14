@@ -30,7 +30,7 @@ impl LogHandler {
 }
 
 impl Handler for LogHandler {
-    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             Action::Result {
                 id,
@@ -61,7 +61,7 @@ impl Handler for LogHandler {
         HandlerResult::Continue
     }
 
-    fn resize(&mut self, _state: &mut State, _size: u16) {}
+    fn on_resize(&mut self, _state: &mut State) {}
 }
 
 pub struct LogsWindow {

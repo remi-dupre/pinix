@@ -25,16 +25,16 @@ pub enum HandlerResult {
 }
 
 pub trait Handler {
-    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult;
-    fn resize(&mut self, _state: &mut State, _size: u16);
+    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult;
+    fn on_resize(&mut self, _state: &mut State);
 }
 
 impl<F: FnMut(&mut State, &Action) -> HandlerResult> Handler for F {
-    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         self(state, action)
     }
 
-    fn resize(&mut self, _state: &mut State, _size: u16) {}
+    fn on_resize(&mut self, _state: &mut State) {}
 }
 
 pub struct State<'s> {
@@ -92,7 +92,7 @@ impl<'s> State<'s> {
             self.term_size = term_size;
 
             for handler in &mut prev_handlers {
-                handler.resize(self, term_size)
+                handler.on_resize(self)
             }
         }
 
@@ -101,7 +101,7 @@ impl<'s> State<'s> {
         }
 
         // Applies handles
-        prev_handlers.retain_mut(|h| h.handle(self, action) == HandlerResult::Continue);
+        prev_handlers.retain_mut(|h| h.on_action(self, action) == HandlerResult::Continue);
 
         // Put back remaining handlers
         let mut new_handlers = std::mem::replace(&mut self.handlers, prev_handlers);

@@ -36,7 +36,7 @@ impl DebugHandler {
 }
 
 impl Handler for DebugHandler {
-    fn handle(&mut self, state: &mut State, _action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, _action: &Action) -> HandlerResult {
         let handlers_len = state.handlers_len as _;
         self.nb_lines += 1;
 
@@ -50,7 +50,7 @@ impl Handler for DebugHandler {
         HandlerResult::Continue
     }
 
-    fn resize(&mut self, _state: &mut State, size: u16) {
-        self.progress.set_style(build_style(size))
+    fn on_resize(&mut self, state: &mut State) {
+        self.progress.set_style(build_style(state.term_size))
     }
 }

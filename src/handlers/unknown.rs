@@ -52,7 +52,7 @@ impl Unknown {
 }
 
 impl Handler for Unknown {
-    fn handle(&mut self, _state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, _state: &mut State, action: &Action) -> HandlerResult {
         if matches!(action , Action::Stop { id, .. } if *id == self.id) {
             HandlerResult::Close
         } else {
@@ -60,7 +60,7 @@ impl Handler for Unknown {
         }
     }
 
-    fn resize(&mut self, _state: &mut State, size: u16) {
-        self.progress.set_style(build_style(size))
+    fn on_resize(&mut self, state: &mut State) {
+        self.progress.set_style(build_style(state.term_size))
     }
 }

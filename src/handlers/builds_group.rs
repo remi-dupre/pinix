@@ -85,7 +85,7 @@ impl BuildGroup {
 }
 
 impl Handler for BuildGroup {
-    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             // New build
             Action::Start {
@@ -142,9 +142,11 @@ impl Handler for BuildGroup {
         HandlerResult::Continue
     }
 
-    fn resize(&mut self, _state: &mut State, size: u16) {
-        self.logs_window.resize(size);
-        self.progress.set_style(get_style(size));
-        self.progress.set_prefix(self.build_bar(size).to_string());
+    fn on_resize(&mut self, state: &mut State) {
+        self.logs_window.resize(state.term_size);
+        self.progress.set_style(get_style(state.term_size));
+
+        self.progress
+            .set_prefix(self.build_bar(state.term_size).to_string());
     }
 }

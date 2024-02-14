@@ -48,7 +48,7 @@ struct WaitForTransfer {
 }
 
 impl Handler for WaitForTransfer {
-    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             Action::Start {
                 action_type: ActionType::FileTransfer,
@@ -69,7 +69,7 @@ impl Handler for WaitForTransfer {
         }
     }
 
-    fn resize(&mut self, _state: &mut State, _size: u16) {}
+    fn on_resize(&mut self, _state: &mut State) {}
 }
 
 /// Keep track of transfer
@@ -80,7 +80,7 @@ struct Transfer {
 }
 
 impl Handler for Transfer {
-    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             Action::Result {
                 action_type: ActionType::Build,
@@ -140,9 +140,9 @@ impl Handler for Transfer {
         }
     }
 
-    fn resize(&mut self, _state: &mut State, size: u16) {
+    fn on_resize(&mut self, state: &mut State) {
         if let Some(progress) = &self.progress {
-            progress.set_style(get_style(size));
+            progress.set_style(get_style(state.term_size));
         }
     }
 }

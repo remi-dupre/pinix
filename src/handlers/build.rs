@@ -37,7 +37,7 @@ impl Build {
 }
 
 impl Handler for Build {
-    fn handle(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
             Action::Stop { id } if *id == self.id => {
                 let icon = style("✓").green();
@@ -57,5 +57,5 @@ impl Handler for Build {
         HandlerResult::Continue
     }
 
-    fn resize(&mut self, _state: &mut State, _size: u16) {}
+    fn on_resize(&mut self, _state: &mut State) {}
 }
