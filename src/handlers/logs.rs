@@ -3,7 +3,7 @@ use std::rc::Rc;
 use console::style;
 use indicatif::ProgressBar;
 
-use crate::action::{Action, BuildStepId, ResultFields};
+use crate::action::{Action, ActionResult, BuildStepId, ResultFields};
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::template_style;
 
@@ -32,11 +32,11 @@ impl LogHandler {
 impl Handler for LogHandler {
     fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
-            Action::Result {
+            Action::Result(ActionResult {
                 id,
-                fields: ResultFields::Msg([msg]),
+                fields: ResultFields::BuildLogLine(msg),
                 ..
-            } if *id == self.id => {
+            }) if *id == self.id => {
                 self.logs.push(msg.to_string());
 
                 if let Some(logs_window) = &self.logs_window {

@@ -1,7 +1,8 @@
 use std::fmt::Display;
 use std::ops::Deref;
 
-use serde::Deserialize;
+use serde::de;
+use serde::{Deserialize, Deserializer};
 use serde_repr::Deserialize_repr;
 
 // ---
@@ -10,7 +11,7 @@ use serde_repr::Deserialize_repr;
 
 #[derive(Clone, Copy, Debug, Deserialize_repr)]
 #[repr(u8)]
-#[derive(PartialEq)]
+#[derive(Eq, PartialEq)]
 pub enum ActionType {
     Unknown = 0,
     CopyPath = 100,
@@ -87,12 +88,7 @@ pub enum Action {
         #[serde(default)]
         fields: StartFields,
     },
-    Result {
-        #[serde(rename = "type")]
-        action_type: ActionType,
-        id: BuildStepId,
-        fields: ResultFields,
-    },
+    Result(ActionResult),
     Stop {
         id: BuildStepId,
     },
@@ -118,10 +114,102 @@ impl Default for StartFields {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug)]
 pub enum ResultFields {
-    Progress([u64; 4]),
-    Realise(ActionType, u64),
-    Msg([String; 1]),
+    BuildLogLine(String),
+    SetPhase(String),
+    Progress {
+        done: u64,
+        expected: u64,
+        running: u64,
+        failed: u64,
+    },
+    SetExpected {
+        action: ActionType,
+        expected: u64,
+    },
+}
+
+#[derive(Debug)]
+pub struct ActionResult {
+    pub id: BuildStepId,
+    pub fields: ResultFields,
+}
+
+impl<'de> Deserialize<'de> for ActionResult {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Debug, Deserialize)]
+        struct RawActionResult {
+            id: BuildStepId,
+            #[serde(rename = "type")]
+            result_type: u8,
+            fields: serde_json::Value,
+        }
+
+        let raw = RawActionResult::deserialize(deserializer)?;
+
+        let fields = match raw.result_type {
+            100 => todo!("FileLinked({})", raw.fields),
+            101 => {
+                let [line] = serde_json::from_value(raw.fields).map_err(|err| {
+                    de::Error::invalid_value(
+                        de::Unexpected::Other(&err.to_string()),
+                        &"an array with a single string",
+                    )
+                })?;
+
+                ResultFields::BuildLogLine(line)
+            }
+            102 => todo!("UntrustedPath({})", raw.fields),
+            103 => todo!("CorruptedPath({})", raw.fields),
+            104 => {
+                let [phase] = serde_json::from_value(raw.fields).map_err(|err| {
+                    de::Error::invalid_value(
+                        de::Unexpected::Other(&err.to_string()),
+                        &"an array with a single string",
+                    )
+                })?;
+
+                ResultFields::SetPhase(phase)
+            }
+            105 => {
+                let (done, expected, running, failed) = serde_json::from_value(raw.fields)
+                    .map_err(|err| {
+                        de::Error::invalid_value(
+                            de::Unexpected::Other(&err.to_string()),
+                            &"an array with 4 integers",
+                        )
+                    })?;
+
+                ResultFields::Progress {
+                    done,
+                    expected,
+                    running,
+                    failed,
+                }
+            }
+            106 => {
+                let (action, expected) = serde_json::from_value(raw.fields).map_err(|err| {
+                    de::Error::invalid_value(
+                        de::Unexpected::Other(&err.to_string()),
+                        &"an array with an action type and an expected value",
+                    )
+                })?;
+
+                ResultFields::SetExpected { action, expected }
+            }
+            107 => todo!("PostBuildLogLine({})", raw.fields),
+            v => {
+                return Err(de::Error::invalid_value(
+                    de::Unexpected::Unsigned(v.into()),
+                    &"a result type ID, from 100 to 107",
+                ))
+            }
+        };
+
+        Ok(ActionResult { id: raw.id, fields })
+    }
 }

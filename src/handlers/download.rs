@@ -1,7 +1,7 @@
 use console::style;
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
 
-use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
+use crate::action::{Action, ActionResult, ActionType, BuildStepId, ResultFields, StartFields};
 use crate::handlers::logs::LogHandler;
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_build_target, format_short_build_target, template_style};
@@ -82,11 +82,10 @@ struct Transfer {
 impl Handler for Transfer {
     fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
         match action {
-            Action::Result {
-                action_type: ActionType::Build,
+            Action::Result(ActionResult {
                 id,
-                fields: ResultFields::Progress([done, expected, ..]),
-            } if *id == self.transfer_id => {
+                fields: ResultFields::Progress { done, expected, .. },
+            }) if *id == self.transfer_id => {
                 self.progress = self.progress.take().or_else(|| {
                     if *expected > 0 {
                         if *expected >= MIN_PROGRESS_PAYLOAD {

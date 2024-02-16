@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use indicatif::{ProgressBar, ProgressStyle};
 use once_cell::sync::Lazy;
 
-use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
+use crate::action::{Action, ActionResult, ActionType, BuildStepId, ResultFields, StartFields};
 use crate::handlers::logs::{LogHandler, LogsWindow};
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_short_build_target, template_style, MultiBar};
@@ -107,11 +107,16 @@ impl Handler for BuildGroup {
             }
 
             // Update progress of builds
-            Action::Result {
-                action_type: ActionType::Build,
+            Action::Result(ActionResult {
                 id,
-                fields: ResultFields::Progress([done, expected, running, ..]),
-            } if *id == self.id => {
+                fields:
+                    ResultFields::Progress {
+                        done,
+                        expected,
+                        running,
+                        ..
+                    },
+            }) if *id == self.id => {
                 self.last_state = [*done, *expected, *running];
 
                 self.progress

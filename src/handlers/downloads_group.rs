@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
 use once_cell::sync::Lazy;
 
-use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
+use crate::action::{Action, ActionResult, ActionType, BuildStepId, ResultFields, StartFields};
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_short_build_target, template_style, MultiBar};
 
@@ -43,9 +43,9 @@ struct DownloadsGroup {
     id: BuildStepId,
     progress: Option<ProgressBar>,
     current_copies: IndexMap<BuildStepId, String>,
-    state_copy: HashMap<BuildStepId, [u64; 4]>,
-    state_transfer: HashMap<BuildStepId, [u64; 4]>,
-    state_self: [u64; 4],
+    state_copy: HashMap<BuildStepId, [u64; 2]>,
+    state_transfer: HashMap<BuildStepId, [u64; 2]>,
+    state_self: [u64; 2],
     max_copy: u64,
     max_transfer: u64,
 }
@@ -58,7 +58,7 @@ impl DownloadsGroup {
             current_copies: IndexMap::new(),
             state_copy: HashMap::new(),
             state_transfer: HashMap::new(),
-            state_self: [0; 4],
+            state_self: [0; 2],
             max_copy: 0,
             max_transfer: 0,
         }
@@ -144,7 +144,7 @@ impl Handler for DownloadsGroup {
                 fields: StartFields::Copy([path, _, _]),
                 ..
             } => {
-                self.state_copy.insert(*id, [0; 4]);
+                self.state_copy.insert(*id, [0; 2]);
 
                 self.current_copies
                     .insert(*id, format_short_build_target(path));
@@ -162,25 +162,24 @@ impl Handler for DownloadsGroup {
                 id,
                 ..
             } => {
-                self.state_transfer.insert(*id, [0; 4]);
+                self.state_transfer.insert(*id, [0; 2]);
             }
 
-            Action::Result {
-                action_type: ActionType::Build,
+            Action::Result(ActionResult {
                 id,
-                fields: ResultFields::Progress(dl_state),
-            } => {
+                fields: ResultFields::Progress { done, expected, .. },
+            }) => {
                 if *id == self.id {
-                    self.state_self = *dl_state;
+                    self.state_self = [*done, *expected];
                     self.update_message();
                 }
 
                 if let Some(copy) = self.state_copy.get_mut(id) {
-                    *copy = *dl_state;
+                    *copy = [*done, *expected];
                 }
 
                 if let Some(transfer) = self.state_transfer.get_mut(id) {
-                    *transfer = *dl_state;
+                    *transfer = [*done, *expected];
 
                     if let Some(progress) = &self.progress {
                         progress.set_position(self.get_done());
@@ -189,20 +188,26 @@ impl Handler for DownloadsGroup {
                 }
             }
 
-            Action::Result {
-                action_type: ActionType::OptimiseStore,
-                fields: ResultFields::Realise(ActionType::CopyPath, max_copy),
+            Action::Result(ActionResult {
+                fields:
+                    ResultFields::SetExpected {
+                        action: ActionType::CopyPaths,
+                        expected,
+                    },
                 ..
-            } => {
-                self.max_copy = *max_copy;
+            }) => {
+                self.max_copy = *expected;
             }
 
-            Action::Result {
-                action_type: ActionType::OptimiseStore,
-                fields: ResultFields::Realise(ActionType::FileTransfer, max_transfer),
+            Action::Result(ActionResult {
+                fields:
+                    ResultFields::SetExpected {
+                        action: ActionType::FileTransfer,
+                        expected,
+                    },
                 ..
-            } => {
-                self.max_transfer = *max_transfer;
+            }) => {
+                self.max_transfer = *expected;
 
                 if let Some(progress) = &self.progress {
                     progress.set_length(self.max_transfer);
