@@ -15,6 +15,7 @@
       packages = forAllSystems (system:
         let
           manifest = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
           pinix =
             { rustPlatform
             , installShellFiles
@@ -41,8 +42,33 @@
                 mainProgram = "pinix";
               };
 
+              postInstall =
+                let
+                  wrappers = [ "nix" "nix-collect-garbage" "nixos-rebuild" "nix-shell" ];
+                  install-wrappers =
+                    lib.lists.forEach
+                      wrappers
+                      (nix-cmd:
+                        let
+                          pix-cmd = "pix" + (lib.strings.removePrefix "nix" nix-cmd);
+                          pkg = pkgs.writeShellApplication {
+                            name = pix-cmd;
+                            text = ''pinix --pix-command ${nix-cmd} "$@"'';
+                          };
+                        in
+                        ''
+                          cat ${pkg}/bin/${pix-cmd} > $out/bin/${pix-cmd}
+                          chmod +x $out/bin/${pix-cmd}
+                        ''
+                      );
+                in
+                lib.lists.foldl
+                  (acc: line: acc + "\n" + line) ""
+                  install-wrappers;
+
               cargoSha256 = "sha256-6hKbAL3a1t1mHNUvvi65e/BkFoJQmvpZQlU58csmol4=";
             };
+
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {

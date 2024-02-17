@@ -22,6 +22,12 @@ pub struct Args {
     #[clap(long = "pix-help", help = "Display this help message")]
     pub help: bool,
 
+    #[arg(
+        long = "pix-command",
+        help = "Specify the nix command that must be run"
+    )]
+    pub command: Option<WrappedProgram>,
+
     #[arg(long = "pix-debug", help = "Display a debug bar")]
     pub debug: bool,
 
@@ -38,7 +44,7 @@ pub struct Args {
     pub ext: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum WrappedProgram {
     Nix,
     NixCollectGarbage,
@@ -143,21 +149,26 @@ impl NixCommand {
     pub fn from_args(args: impl Iterator<Item = String>) -> Self {
         let mut cmd = Self::from_program_and_args(WrappedProgram::Unknown(String::new()), args);
 
-        if cmd.args.ext.is_empty() {
-            eprintln!(
-                "{}: No program to execute",
-                style("error").bright().red().bold()
-            );
+        let program: WrappedProgram = {
+            if let Some(program) = cmd.args.command.clone() {
+                program
+            } else if cmd.args.ext.is_empty() {
+                eprintln!(
+                    "{}: No program to execute",
+                    style("error").bright().red().bold()
+                );
 
-            Args::command()
-                .print_help()
-                .expect("failed to display help message");
+                Args::command()
+                    .print_help()
+                    .expect("failed to display help message");
 
-            std::process::exit(1);
+                std::process::exit(1);
+            } else {
+                cmd.args.ext.remove(0).into()
+            }
         };
 
-        let program_str = cmd.args.ext.remove(0);
-        cmd.program = WrappedProgram::Unknown(program_str);
+        cmd.program = program;
         cmd
     }
 
