@@ -1,6 +1,11 @@
 [package]
 name = "pinix"
-description = " Progress In Nix - Pacman inspired frontend for Nix "
+description = "Progress In Nix - Pacman inspired frontend for Nix"
+authors = ["Rémi Dupré <remi@dupre.io>"]
+license = "LGPL-3.0-or-later"
+readme = "README.md"
+repository = "https://github.com/remi-dupre/pinix"
+homepage = "https://github.com/remi-dupre/pinix"
 version = "0.2.0"
 edition = "2021"
 

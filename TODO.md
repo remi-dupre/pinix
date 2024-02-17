@@ -1,7 +1,6 @@
 # To Do
 
 - autocomplete
-- light shell scripts for wrapper commands
 - option : configure truncation of logs
 - perf : precise event subscription
 - fix : shrinking terminal f..ks up old logs
@@ -20,3 +19,4 @@
 - spinner with no new thread through tokio task
 - option : record
 - option : debug mode
+- light shell scripts for wrapper commands
