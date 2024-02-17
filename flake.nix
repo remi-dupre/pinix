@@ -14,14 +14,15 @@
     {
       packages = forAllSystems (system:
         let
+          manifest = builtins.fromTOML (builtins.readFile ./Cargo.toml);
           pinix =
             { rustPlatform
             , installShellFiles
             , lib
             }:
             rustPlatform.buildRustPackage {
-              pname = "pinix";
-              version = "0.1.0";
+              pname = manifest.package.name;
+              version = manifest.package.version;
               src = ./.;
               nativeBuildInputs = [ installShellFiles ];
 
