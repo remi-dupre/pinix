@@ -1,12 +1,14 @@
 [package]
 name = "pinix"
+version = "0.2.0"
 description = "Progress In Nix - Pacman inspired frontend for Nix"
 authors = ["Rémi Dupré <remi@dupre.io>"]
 license = "LGPL-3.0-or-later"
 readme = "README.md"
 repository = "https://github.com/remi-dupre/pinix"
 homepage = "https://github.com/remi-dupre/pinix"
-version = "0.2.0"
+keywords = ["nix", "progress"]
+categories = ["command-line-utilities"]
 edition = "2021"
 
 [dependencies]
