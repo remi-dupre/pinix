@@ -36,7 +36,7 @@ impl DebugHandler {
 }
 
 impl Handler for DebugHandler {
-    fn on_action(&mut self, state: &mut State, _action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, _action: &Action) -> anyhow::Result<HandlerResult> {
         let handlers_len = state.handlers_len as _;
         self.nb_lines += 1;
 
@@ -47,10 +47,11 @@ impl Handler for DebugHandler {
             .set_message(format!("Parsed {} lines of log", HumanCount(self.nb_lines)));
 
         self.progress.set_position(handlers_len);
-        HandlerResult::Continue
+        Ok(HandlerResult::Continue)
     }
 
-    fn on_resize(&mut self, state: &mut State) {
-        self.progress.set_style(build_style(state.term_size))
+    fn on_resize(&mut self, state: &mut State) -> anyhow::Result<()> {
+        self.progress.set_style(build_style(state.term_size));
+        Ok(())
     }
 }

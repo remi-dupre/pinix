@@ -1,9 +1,12 @@
+use std::borrow::Cow;
 use std::fmt::Display;
 use std::ops::Deref;
 
-use serde::de;
-use serde::{Deserialize, Deserializer};
+use anyhow::Context;
+use serde::Deserialize;
 use serde_repr::Deserialize_repr;
+
+use crate::parse::action_raw::RawAction;
 
 // ---
 // --- ActionType
@@ -71,53 +74,41 @@ impl Display for BuildStepId {
 // --- Action
 // ---
 
-#[derive(Debug, Deserialize)]
-#[serde(tag = "action", rename_all = "lowercase")]
-pub enum Action {
-    Msg {
-        level: u8,
-        msg: String,
+#[derive(Debug)]
+pub enum StartFields<'a> {
+    Unknown,
+    CopyPath {
+        path: Cow<'a, str>,
+        origin: Cow<'a, str>,
+        destination: Cow<'a, str>,
     },
-    Start {
-        #[serde(rename = "type")]
-        action_type: ActionType,
-        id: BuildStepId,
-        level: u8,
-        parent: BuildStepId,
-        text: String,
-        #[serde(default)]
-        fields: StartFields,
+    FileTransfer {
+        target: Cow<'a, str>,
     },
-    Result(ActionResult),
-    Stop {
-        id: BuildStepId,
+    Realise,
+    CopyPaths,
+    Builds,
+    Build {
+        target: Cow<'a, str>,
+        source: Cow<'a, str>, // TODO: check
+        val1: u64,
+        val2: u64,
     },
-}
-
-/// ---
-/// --- Fields
-/// ---
-
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub enum StartFields {
-    None,
-    Build((String, String, u64, u64)),
-    Download([String; 1]),
-    Substitute([String; 2]),
-    Copy([String; 3]),
-}
-
-impl Default for StartFields {
-    fn default() -> Self {
-        Self::None
-    }
+    OptimiseStore,
+    VerifyPaths,
+    Substitute {
+        source: Cow<'a, str>,
+        target: Cow<'a, str>,
+    },
+    QueryPathInfo,
+    PostBuildHook,
+    BuildWaiting,
 }
 
 #[derive(Debug)]
-pub enum ResultFields {
-    BuildLogLine(String),
-    SetPhase(String),
+pub enum ResultFields<'a> {
+    BuildLogLine(Cow<'a, str>),
+    SetPhase(&'a str),
     Progress {
         done: u64,
         expected: u64,
@@ -131,85 +122,30 @@ pub enum ResultFields {
 }
 
 #[derive(Debug)]
-pub struct ActionResult {
-    pub id: BuildStepId,
-    pub fields: ResultFields,
+pub enum Action<'a> {
+    Msg {
+        level: u8,
+        msg: Cow<'a, str>,
+    },
+    Start {
+        start_type: StartFields<'a>,
+        id: BuildStepId,
+        level: u8,
+        parent: BuildStepId,
+        text: Cow<'a, str>,
+    },
+    Result {
+        id: BuildStepId,
+        fields: ResultFields<'a>,
+    },
+    Stop {
+        id: BuildStepId,
+    },
 }
 
-impl<'de> Deserialize<'de> for ActionResult {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Debug, Deserialize)]
-        struct RawActionResult {
-            id: BuildStepId,
-            #[serde(rename = "type")]
-            result_type: u8,
-            fields: serde_json::Value,
-        }
-
-        let raw = RawActionResult::deserialize(deserializer)?;
-
-        let fields = match raw.result_type {
-            100 => todo!("FileLinked({})", raw.fields),
-            101 => {
-                let [line] = serde_json::from_value(raw.fields).map_err(|err| {
-                    de::Error::invalid_value(
-                        de::Unexpected::Other(&err.to_string()),
-                        &"an array with a single string",
-                    )
-                })?;
-
-                ResultFields::BuildLogLine(line)
-            }
-            102 => todo!("UntrustedPath({})", raw.fields),
-            103 => todo!("CorruptedPath({})", raw.fields),
-            104 => {
-                let [phase] = serde_json::from_value(raw.fields).map_err(|err| {
-                    de::Error::invalid_value(
-                        de::Unexpected::Other(&err.to_string()),
-                        &"an array with a single string",
-                    )
-                })?;
-
-                ResultFields::SetPhase(phase)
-            }
-            105 => {
-                let (done, expected, running, failed) = serde_json::from_value(raw.fields)
-                    .map_err(|err| {
-                        de::Error::invalid_value(
-                            de::Unexpected::Other(&err.to_string()),
-                            &"an array with 4 integers",
-                        )
-                    })?;
-
-                ResultFields::Progress {
-                    done,
-                    expected,
-                    running,
-                    failed,
-                }
-            }
-            106 => {
-                let (action, expected) = serde_json::from_value(raw.fields).map_err(|err| {
-                    de::Error::invalid_value(
-                        de::Unexpected::Other(&err.to_string()),
-                        &"an array with an action type and an expected value",
-                    )
-                })?;
-
-                ResultFields::SetExpected { action, expected }
-            }
-            107 => todo!("PostBuildLogLine({})", raw.fields),
-            v => {
-                return Err(de::Error::invalid_value(
-                    de::Unexpected::Unsigned(v.into()),
-                    &"a result type ID, from 100 to 107",
-                ))
-            }
-        };
-
-        Ok(ActionResult { id: raw.id, fields })
+impl<'a> Action<'a> {
+    pub fn parse(s: &'a str) -> anyhow::Result<Self> {
+        let raw: RawAction = serde_json::from_str(s).context("Could not parse raw JSON")?;
+        raw.try_into().context("Could not convert raw action")
     }
 }

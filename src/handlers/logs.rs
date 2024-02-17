@@ -3,7 +3,7 @@ use std::rc::Rc;
 use console::style;
 use indicatif::ProgressBar;
 
-use crate::action::{Action, ActionResult, BuildStepId, ResultFields};
+use crate::action::{Action, BuildStepId, ResultFields};
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::template_style;
 
@@ -30,13 +30,13 @@ impl LogHandler {
 }
 
 impl Handler for LogHandler {
-    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
         match action {
-            Action::Result(ActionResult {
+            Action::Result {
                 id,
                 fields: ResultFields::BuildLogLine(msg),
                 ..
-            }) if *id == self.id => {
+            } if *id == self.id => {
                 self.logs.push(msg.to_string());
 
                 if let Some(logs_window) = &self.logs_window {
@@ -49,19 +49,17 @@ impl Handler for LogHandler {
 
                 for (i, line) in self.logs.iter().enumerate() {
                     let prefix = if i + 1 == logs_len { '└' } else { '│' };
-                    state.println(style(format!("{prefix} {line}")).dim().to_string());
+                    state.println(style(format!("{prefix} {line}")).dim().to_string())?;
                 }
 
-                return HandlerResult::Close;
+                return Ok(HandlerResult::Close);
             }
 
             _ => {}
         }
 
-        HandlerResult::Continue
+        Ok(HandlerResult::Continue)
     }
-
-    fn on_resize(&mut self, _state: &mut State) {}
 }
 
 pub struct LogsWindow {

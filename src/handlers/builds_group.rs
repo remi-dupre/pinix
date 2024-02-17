@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use indicatif::{ProgressBar, ProgressStyle};
 use once_cell::sync::Lazy;
 
-use crate::action::{Action, ActionResult, ActionType, BuildStepId, ResultFields, StartFields};
+use crate::action::{Action, BuildStepId, ResultFields, StartFields};
 use crate::handlers::logs::{LogHandler, LogsWindow};
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_short_build_target, template_style, MultiBar};
@@ -24,9 +24,12 @@ pub fn get_style(size: u16) -> ProgressStyle {
     )
 }
 
-pub fn handle_new_builds_group(state: &mut State, action: &Action) -> HandlerResult {
+pub fn handle_new_builds_group(
+    state: &mut State,
+    action: &Action,
+) -> anyhow::Result<HandlerResult> {
     if let Action::Start {
-        action_type: ActionType::Builds,
+        start_type: StartFields::Builds,
         id,
         ..
     } = action
@@ -44,7 +47,7 @@ pub fn handle_new_builds_group(state: &mut State, action: &Action) -> HandlerRes
         });
     }
 
-    HandlerResult::Continue
+    Ok(HandlerResult::Continue)
 }
 
 /// Keep track of current group of builds
@@ -85,13 +88,12 @@ impl BuildGroup {
 }
 
 impl Handler for BuildGroup {
-    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
         match action {
             // New build
             Action::Start {
-                action_type: ActionType::Build,
+                start_type: StartFields::Build { target, .. },
                 id,
-                fields: StartFields::Build((target, _, _, _)),
                 ..
             } => {
                 self.builds_formatted
@@ -107,7 +109,7 @@ impl Handler for BuildGroup {
             }
 
             // Update progress of builds
-            Action::Result(ActionResult {
+            Action::Result {
                 id,
                 fields:
                     ResultFields::Progress {
@@ -116,7 +118,7 @@ impl Handler for BuildGroup {
                         running,
                         ..
                     },
-            }) if *id == self.id => {
+            } if *id == self.id => {
                 self.last_state = [*done, *expected, *running];
 
                 self.progress
@@ -133,25 +135,27 @@ impl Handler for BuildGroup {
                 if nb_built > 0 {
                     let icon = style("⯈").green();
                     let detail = style(format!("({:.0?})", self.progress.duration())).dim();
-                    state.println(format!("{icon} Built {nb_built} derivations {detail}"));
+                    state.println(format!("{icon} Built {nb_built} derivations {detail}"))?;
                 }
 
                 state.remove_separator();
                 self.progress.finish_and_clear();
-                return HandlerResult::Close;
+                return Ok(HandlerResult::Close);
             }
 
             _ => {}
         }
 
-        HandlerResult::Continue
+        Ok(HandlerResult::Continue)
     }
 
-    fn on_resize(&mut self, state: &mut State) {
+    fn on_resize(&mut self, state: &mut State) -> anyhow::Result<()> {
         self.logs_window.resize(state.term_size);
         self.progress.set_style(get_style(state.term_size));
 
         self.progress
             .set_prefix(self.build_bar(state.term_size).to_string());
+
+        Ok(())
     }
 }

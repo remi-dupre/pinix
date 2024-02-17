@@ -1,7 +1,7 @@
 use console::style;
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
 
-use crate::action::{Action, ActionResult, ActionType, BuildStepId, ResultFields, StartFields};
+use crate::action::{Action, BuildStepId, ResultFields, StartFields};
 use crate::handlers::logs::LogHandler;
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_build_target, format_short_build_target, template_style};
@@ -22,11 +22,10 @@ fn get_style(size: u16) -> ProgressStyle {
     )
 }
 
-pub fn handle_new_download(state: &mut State, action: &Action) -> HandlerResult {
+pub fn handle_new_download(state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
     if let Action::Start {
-        action_type: ActionType::CopyPath,
+        start_type: StartFields::CopyPath { path, .. },
         id,
-        fields: StartFields::Copy([path, _, _]),
         ..
     } = action
     {
@@ -38,7 +37,7 @@ pub fn handle_new_download(state: &mut State, action: &Action) -> HandlerResult 
         })
     };
 
-    HandlerResult::Continue
+    Ok(HandlerResult::Continue)
 }
 
 /// A new download was registered, waiting for corresponding transfer
@@ -48,10 +47,10 @@ struct WaitForTransfer {
 }
 
 impl Handler for WaitForTransfer {
-    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
         match action {
             Action::Start {
-                action_type: ActionType::FileTransfer,
+                start_type: StartFields::FileTransfer { .. },
                 id,
                 parent,
                 ..
@@ -63,13 +62,11 @@ impl Handler for WaitForTransfer {
                 });
 
                 state.plug(LogHandler::new(*id));
-                HandlerResult::Close
+                Ok(HandlerResult::Close)
             }
-            _ => HandlerResult::Continue,
+            _ => Ok(HandlerResult::Continue),
         }
     }
-
-    fn on_resize(&mut self, _state: &mut State) {}
 }
 
 /// Keep track of transfer
@@ -80,12 +77,12 @@ struct Transfer {
 }
 
 impl Handler for Transfer {
-    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
         match action {
-            Action::Result(ActionResult {
+            Action::Result {
                 id,
                 fields: ResultFields::Progress { done, expected, .. },
-            }) if *id == self.transfer_id => {
+            } if *id == self.transfer_id => {
                 self.progress = self.progress.take().or_else(|| {
                     if *expected > 0 {
                         if *expected >= MIN_PROGRESS_PAYLOAD {
@@ -107,7 +104,7 @@ impl Handler for Transfer {
                     progress.set_position(*done);
                 }
 
-                HandlerResult::Continue
+                Ok(HandlerResult::Continue)
             }
 
             Action::Stop { id } if *id == self.transfer_id => {
@@ -127,21 +124,23 @@ impl Handler for Transfer {
                         .dim()
                         .to_string();
 
-                        state.println(msg_main + &msg_stats);
+                        state.println(msg_main + &msg_stats)?;
                         progress.finish_and_clear();
                     }
                 }
 
-                HandlerResult::Close
+                Ok(HandlerResult::Close)
             }
 
-            _ => HandlerResult::Continue,
+            _ => Ok(HandlerResult::Continue),
         }
     }
 
-    fn on_resize(&mut self, state: &mut State) {
+    fn on_resize(&mut self, state: &mut State) -> anyhow::Result<()> {
         if let Some(progress) = &self.progress {
             progress.set_style(get_style(state.term_size));
         }
+
+        Ok(())
     }
 }

@@ -25,16 +25,25 @@ pub enum HandlerResult {
 }
 
 pub trait Handler {
-    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult;
-    fn on_resize(&mut self, _state: &mut State);
+    fn on_action<'a>(
+        &mut self,
+        state: &mut State,
+        action: &'a Action<'a>,
+    ) -> anyhow::Result<HandlerResult>;
+
+    fn on_resize(&mut self, _state: &mut State) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
-impl<F: FnMut(&mut State, &Action) -> HandlerResult> Handler for F {
-    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+impl<F: FnMut(&mut State, &Action) -> anyhow::Result<HandlerResult>> Handler for F {
+    fn on_action<'a>(
+        &mut self,
+        state: &mut State,
+        action: &'a Action<'a>,
+    ) -> anyhow::Result<HandlerResult> {
         self(state, action)
     }
-
-    fn on_resize(&mut self, _state: &mut State) {}
 }
 
 pub struct State<'s> {
@@ -81,7 +90,7 @@ impl<'s> State<'s> {
 }
 
 impl<'s> State<'s> {
-    pub fn handle(&mut self, action: &Action) {
+    pub fn handle(&mut self, action: &Action) -> anyhow::Result<()> {
         // Move out handlers to allow borrowing self
         let mut prev_handlers = std::mem::take(&mut self.handlers);
 
@@ -92,7 +101,7 @@ impl<'s> State<'s> {
             self.term_size = term_size;
 
             for handler in &mut prev_handlers {
-                handler.on_resize(self)
+                handler.on_resize(self)?;
             }
         }
 
@@ -101,12 +110,21 @@ impl<'s> State<'s> {
         }
 
         // Applies handles
-        prev_handlers.retain_mut(|h| h.on_action(self, action) == HandlerResult::Continue);
+        let mut retain_result = Ok(());
+
+        prev_handlers.retain_mut(|h| match h.on_action(self, action) {
+            Ok(x) => x == HandlerResult::Continue,
+            Err(err) => {
+                retain_result = Err(err);
+                false
+            }
+        });
 
         // Put back remaining handlers
         let mut new_handlers = std::mem::replace(&mut self.handlers, prev_handlers);
         self.handlers.append(&mut new_handlers);
         self.handlers_len = self.handlers.len();
+        retain_result
     }
 
     pub fn plug<H: Handler + 's>(&mut self, handler: H) {
@@ -137,10 +155,10 @@ impl<'s> State<'s> {
         self.separator.take();
     }
 
-    pub fn println(&self, msg: impl AsRef<str>) {
+    pub fn println(&self, msg: impl AsRef<str>) -> anyhow::Result<()> {
         self.multi_progress
             .println(msg)
-            .expect("could not print line")
+            .context("Could not print line")
     }
 }
 
@@ -167,20 +185,20 @@ pub async fn monitor_logs(
         .try_fold(&mut record_file, move |mut record_file, (output, line)| {
             let elapsed = start_time.elapsed();
 
-            match output {
+            let result = match output {
                 OutputStream::StdOut => state.println(&line),
                 OutputStream::StdErr => {
                     if let Some(action_str) = line.strip_prefix("@nix ") {
-                        let action =
-                            serde_json::from_str(action_str).expect("invalid JSON in action");
-                        state.handle(&action);
+                        Action::parse(action_str).and_then(|action| state.handle(&action))
                     } else {
-                        state.println(&line);
+                        state.println(&line)
                     }
                 }
             };
 
             async move {
+                result?;
+
                 if let Some(file) = &mut record_file {
                     let line = format!("{} {:07} {line}\n", output.as_str(), elapsed.as_millis());
 

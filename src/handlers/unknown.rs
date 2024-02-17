@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use indicatif::{ProgressBar, ProgressFinish, ProgressStyle};
 
-use crate::action::{Action, ActionType, BuildStepId};
+use crate::action::{Action, BuildStepId, StartFields};
 use crate::handlers::logs::LogHandler;
 use crate::indicatif_ext::ProgressBarExt;
 use crate::state::{Handler, HandlerResult, State};
@@ -12,20 +12,20 @@ fn build_style(size: u16) -> ProgressStyle {
     template_style(size, true, |_| "{msg} {spinner} {wide_bar}", |_| "").tick_chars("…  ")
 }
 
-pub fn handle_new_unknown(state: &mut State, action: &Action) -> HandlerResult {
+pub fn handle_new_unknown(state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
     if let Action::Start {
-        action_type: ActionType::Unknown,
+        start_type: StartFields::Unknown,
         id,
         text,
         ..
     } = action
     {
-        let handler = Unknown::new(*id, text.as_str(), state);
+        let handler = Unknown::new(*id, text, state);
         state.plug(handler);
         state.plug(LogHandler::new(*id));
     };
 
-    HandlerResult::Continue
+    Ok(HandlerResult::Continue)
 }
 
 struct Unknown {
@@ -52,15 +52,16 @@ impl Unknown {
 }
 
 impl Handler for Unknown {
-    fn on_action(&mut self, _state: &mut State, action: &Action) -> HandlerResult {
-        if matches!(action , Action::Stop { id, .. } if *id == self.id) {
-            HandlerResult::Close
+    fn on_action(&mut self, _state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
+        if matches!(action , Action::Stop { id } if *id == self.id) {
+            Ok(HandlerResult::Close)
         } else {
-            HandlerResult::Continue
+            Ok(HandlerResult::Continue)
         }
     }
 
-    fn on_resize(&mut self, state: &mut State) {
-        self.progress.set_style(build_style(state.term_size))
+    fn on_resize(&mut self, state: &mut State) -> anyhow::Result<()> {
+        self.progress.set_style(build_style(state.term_size));
+        Ok(())
     }
 }

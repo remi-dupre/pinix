@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
 use once_cell::sync::Lazy;
 
-use crate::action::{Action, ActionResult, ActionType, BuildStepId, ResultFields, StartFields};
+use crate::action::{Action, ActionType, BuildStepId, ResultFields, StartFields};
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_short_build_target, template_style, MultiBar};
 
@@ -25,9 +25,12 @@ fn get_style(size: u16) -> ProgressStyle {
     )
 }
 
-pub fn handle_new_downloads_group(state: &mut State, action: &Action) -> HandlerResult {
+pub fn handle_new_downloads_group(
+    state: &mut State,
+    action: &Action,
+) -> anyhow::Result<HandlerResult> {
     if let Action::Start {
-        action_type: ActionType::CopyPaths,
+        start_type: StartFields::CopyPaths,
         id,
         ..
     } = action
@@ -36,7 +39,7 @@ pub fn handle_new_downloads_group(state: &mut State, action: &Action) -> Handler
         state.plug(handler);
     }
 
-    HandlerResult::Continue
+    Ok(HandlerResult::Continue)
 }
 
 struct DownloadsGroup {
@@ -136,12 +139,11 @@ impl DownloadsGroup {
 }
 
 impl Handler for DownloadsGroup {
-    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
         match action {
             Action::Start {
-                action_type: ActionType::CopyPath,
+                start_type: StartFields::CopyPath { path, .. },
                 id,
-                fields: StartFields::Copy([path, _, _]),
                 ..
             } => {
                 self.state_copy.insert(*id, [0; 2]);
@@ -158,17 +160,17 @@ impl Handler for DownloadsGroup {
             }
 
             Action::Start {
-                action_type: ActionType::FileTransfer,
+                start_type: StartFields::FileTransfer { .. },
                 id,
                 ..
             } => {
                 self.state_transfer.insert(*id, [0; 2]);
             }
 
-            Action::Result(ActionResult {
+            Action::Result {
                 id,
                 fields: ResultFields::Progress { done, expected, .. },
-            }) => {
+            } => {
                 if *id == self.id {
                     self.state_self = [*done, *expected];
                     self.update_message();
@@ -188,25 +190,25 @@ impl Handler for DownloadsGroup {
                 }
             }
 
-            Action::Result(ActionResult {
+            Action::Result {
                 fields:
                     ResultFields::SetExpected {
                         action: ActionType::CopyPaths,
                         expected,
                     },
                 ..
-            }) => {
+            } => {
                 self.max_copy = *expected;
             }
 
-            Action::Result(ActionResult {
+            Action::Result {
                 fields:
                     ResultFields::SetExpected {
                         action: ActionType::FileTransfer,
                         expected,
                     },
                 ..
-            }) => {
+            } => {
                 self.max_transfer = *expected;
 
                 if let Some(progress) = &self.progress {
@@ -232,11 +234,11 @@ impl Handler for DownloadsGroup {
                     .dim()
                     .to_string();
 
-                    state.println(msg_main + &msg_stats);
+                    state.println(msg_main + &msg_stats)?;
                     progress.finish_and_clear();
                 }
 
-                return HandlerResult::Close;
+                return Ok(HandlerResult::Close);
             }
 
             Action::Stop { id } => {
@@ -247,13 +249,15 @@ impl Handler for DownloadsGroup {
             _ => {}
         }
 
-        HandlerResult::Continue
+        Ok(HandlerResult::Continue)
     }
 
-    fn on_resize(&mut self, state: &mut State) {
+    fn on_resize(&mut self, state: &mut State) -> anyhow::Result<()> {
         if let Some(progress) = &self.progress {
             progress.set_style(get_style(state.term_size));
             self.update_bar(state.term_size);
         }
+
+        Ok(())
     }
 }

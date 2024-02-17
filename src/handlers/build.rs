@@ -2,22 +2,21 @@ use std::time::Instant;
 
 use console::style;
 
-use crate::action::{Action, ActionType, BuildStepId, StartFields};
+use crate::action::{Action, BuildStepId, StartFields};
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::format_build_target;
 
-pub fn handle_new_build(state: &mut State, action: &Action) -> HandlerResult {
+pub fn handle_new_build(state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
     if let Action::Start {
-        action_type: ActionType::Build,
+        start_type: StartFields::Build { target, .. },
         id,
-        fields: StartFields::Build((target, _, _, _)),
         ..
     } = action
     {
         state.plug(Build::new(*id, target.to_string()));
     }
 
-    HandlerResult::Continue
+    Ok(HandlerResult::Continue)
 }
 
 struct Build {
@@ -37,7 +36,7 @@ impl Build {
 }
 
 impl Handler for Build {
-    fn on_action(&mut self, state: &mut State, action: &Action) -> HandlerResult {
+    fn on_action(&mut self, state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
         match action {
             Action::Stop { id } if *id == self.id => {
                 let icon = style("✓").green();
@@ -46,16 +45,14 @@ impl Handler for Build {
                 state.println(format!(
                     "{icon} Built {} {detail}",
                     format_build_target(&self.target)
-                ));
+                ))?;
 
-                return HandlerResult::Close;
+                return Ok(HandlerResult::Close);
             }
 
             _ => {}
         }
 
-        HandlerResult::Continue
+        Ok(HandlerResult::Continue)
     }
-
-    fn on_resize(&mut self, _state: &mut State) {}
 }
