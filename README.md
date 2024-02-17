@@ -3,7 +3,7 @@
 Pinix is a Pacman inspired frontend for Nix. It wraps a regular Nix command and
 replaces the output with a more modern and informative interface.
 
-[![asciicast](demo-gif)](demo-ascii)
+[![asciicast][demo-gif]][demo-ascii]
 
 It _should_ work transparently for most commands, including when an interactive
 shell is spawned.
@@ -23,7 +23,7 @@ adding it to your _flake.nix_:
 
 ### Using Cargo
 
-You can also install pinix from sources by using [cargo](cargo):
+You can also install pinix from sources by using [cargo][cargo]:
 
 ```shell
 cargo install pinix
