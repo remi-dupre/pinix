@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use divan::Bencher;
 use pinix::action::Action;
-use pinix::parse::action_raw::RawAction;
+use pinix::action_raw::RawAction;
 
 fn main() {
     divan::main();

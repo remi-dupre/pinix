@@ -2,13 +2,10 @@
 
 - autocomplete
 - light shell scripts for wrapper commands
-- option : record
-- option : debug mode
 - option : configure truncation of logs
-- perf : no more untagged enums
 - perf : precise event subscription
 - fix : shrinking terminal f..ks up old logs
-- spinner with no new thread through tokio task
+- distribute via cargo
 
 # Done
 
@@ -19,3 +16,7 @@
 - implement a wrapper command
 - multi-state progress bars
 - easy nixos install through a flake?
+- perf : no more untagged enums
+- spinner with no new thread through tokio task
+- option : record
+- option : debug mode

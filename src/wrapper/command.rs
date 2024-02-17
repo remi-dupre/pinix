@@ -9,7 +9,7 @@ use tokio::process;
 
 use crate::state::monitor_logs;
 
-use super::stream::stream_child_output;
+use super::stream::MergedStreams;
 
 #[derive(Debug, clap::Parser)]
 #[command(
@@ -171,7 +171,7 @@ impl NixCommand {
             .context("failed to spawn command")?;
 
         let logs_stream =
-            stream_child_output(&mut child).context("could not pipe command output")?;
+            MergedStreams::new(&mut child).context("could not pipe command output")?;
 
         monitor_logs(self, logs_stream).await?;
         let exit_code = child.wait().await.context("child command failed")?;

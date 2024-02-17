@@ -6,7 +6,7 @@ use anyhow::Context;
 use serde::Deserialize;
 use serde_repr::Deserialize_repr;
 
-use crate::parse::action_raw::RawAction;
+use crate::action_raw::RawAction;
 
 // ---
 // --- ActionType
@@ -144,8 +144,8 @@ pub enum Action<'a> {
 }
 
 impl<'a> Action<'a> {
-    pub fn parse(s: &'a str) -> anyhow::Result<Self> {
-        let raw: RawAction = serde_json::from_str(s).context("Could not parse raw JSON")?;
+    pub fn parse(buf: &'a str) -> anyhow::Result<Self> {
+        let raw: RawAction = serde_json::from_str(buf).context("Could not parse raw JSON")?;
         raw.try_into().context("Could not convert raw action")
     }
 }

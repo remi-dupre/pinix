@@ -3,7 +3,6 @@ use std::time::Instant;
 
 use anyhow::Context;
 use console::style;
-use futures::TryStreamExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
 use tokio::io::{AsyncWriteExt, BufWriter};
 
@@ -16,7 +15,7 @@ use crate::handlers::downloads_group::handle_new_downloads_group;
 use crate::handlers::message::handle_new_message;
 use crate::handlers::unknown::handle_new_unknown;
 use crate::wrapper::command::NixCommand;
-use crate::wrapper::stream::{OutputStream, StreamedPipes};
+use crate::wrapper::stream::{MergedStreams, OutputStream};
 
 #[derive(Eq, PartialEq)]
 pub enum HandlerResult {
@@ -162,9 +161,9 @@ impl<'s> State<'s> {
     }
 }
 
-pub async fn monitor_logs(
+pub async fn monitor_logs<'c>(
     cmd: &NixCommand,
-    log_stream: impl StreamedPipes<'_>,
+    mut log_stream: MergedStreams<'c>,
 ) -> anyhow::Result<()> {
     let mut state = State::new(cmd);
     let start_time = Instant::now();
@@ -181,36 +180,32 @@ pub async fn monitor_logs(
         }
     };
 
-    log_stream
-        .try_fold(&mut record_file, move |mut record_file, (output, line)| {
+    while let Some((output, line)) = log_stream.next_line().await? {
+        let line = std::str::from_utf8(line).context("invalid utf-8")?;
+
+        if let Some(file) = &mut record_file {
             let elapsed = start_time.elapsed();
+            let line = format!("{} {:07} {line}\n", output.as_str(), elapsed.as_millis());
 
-            let result = match output {
-                OutputStream::StdOut => state.println(&line),
-                OutputStream::StdErr => {
-                    if let Some(action_str) = line.strip_prefix("@nix ") {
-                        Action::parse(action_str).and_then(|action| state.handle(&action))
-                    } else {
-                        state.println(&line)
-                    }
-                }
-            };
+            file.write_all(line.as_bytes())
+                .await
+                .context("error writing record file")?;
+        }
 
-            async move {
-                result?;
-
-                if let Some(file) = &mut record_file {
-                    let line = format!("{} {:07} {line}\n", output.as_str(), elapsed.as_millis());
-
-                    file.write_all(line.as_bytes())
-                        .await
-                        .context("error writing record file")?;
-                }
-
-                Ok(record_file)
+        match output {
+            OutputStream::StdOut => {
+                state.println(line)?;
             }
-        })
-        .await?;
+            OutputStream::StdErr => {
+                if let Some(action_raw) = line.strip_prefix("@nix ") {
+                    let action = Action::parse(action_raw)?;
+                    state.handle(&action)?;
+                } else {
+                    state.println(line)?
+                }
+            }
+        }
+    }
 
     if let Some(mut file) = record_file {
         file.flush().await.context("error saving record file")?;
