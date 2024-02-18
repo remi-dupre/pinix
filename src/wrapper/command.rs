@@ -13,8 +13,9 @@ use super::stream::MergedStreams;
 
 #[derive(Debug, clap::Parser)]
 #[command(
-    disable_help_flag = true,
     allow_hyphen_values = true,
+    disable_help_flag = true,
+    disable_version_flag = true,
     trailing_var_arg = true
 )]
 /// Wrap a Nix command to display rich logs while it is running.
@@ -32,10 +33,23 @@ pub struct Args {
     pub debug: bool,
 
     #[arg(
-        long = "pix-log-downloads",
-        help = "Display a log line when a download is finished"
+        long = "pix-show-downloads",
+        help = "Display a summary line when a download is finished"
     )]
-    pub log_downloads: bool,
+    pub show_downloads: bool,
+
+    #[arg(
+        long = "pix-log-window",
+        help = "Size of the window displaying build logs",
+        default_value = "5"
+    )]
+    pub log_window_len: usize,
+
+    #[arg(
+        long = "pix-log-history",
+        help = "Restrict the size of the log history of each build [default: unrestricted]"
+    )]
+    pub log_history_len: Option<usize>,
 
     #[arg(long = "pix-record", help = "Save timestamped logs to a file")]
     pub record: Option<PathBuf>,

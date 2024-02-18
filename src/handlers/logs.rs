@@ -45,6 +45,23 @@ impl Handler for LogHandler {
             }
 
             Action::Stop { id } if *id == self.id => {
+                let truncated = (state.cmd.args.log_history_len)
+                    .map(|max_len| self.logs.len().saturating_sub(max_len))
+                    .unwrap_or(0);
+
+                if truncated > 0 {
+                    self.logs = self.logs.split_off(truncated);
+
+                    state.println(
+                        style(format!(
+                            "┆ ⋅⋅⋅ {}",
+                            style(format!("(skipped {truncated} lines)")).italic()
+                        ))
+                        .dim()
+                        .to_string(),
+                    )?;
+                }
+
                 let logs_len = self.logs.len();
 
                 for (i, line) in self.logs.iter().enumerate() {
@@ -67,7 +84,8 @@ pub struct LogsWindow {
 }
 
 impl LogsWindow {
-    pub fn new(state: &mut State, after: &ProgressBar, nb_lines: usize) -> Self {
+    pub fn new(state: &mut State, after: &ProgressBar) -> Self {
+        let nb_lines = state.cmd.args.log_window_len;
         let mut log_lines = Vec::new();
 
         for i in 0..nb_lines {

@@ -36,7 +36,7 @@ pub fn handle_new_builds_group(
     {
         let progress = ProgressBar::new_spinner().with_style(get_style(state.term_size));
         let progress = state.add(progress);
-        let logs_window = Rc::new(LogsWindow::new(state, &progress, 5));
+        let logs_window = Rc::new(LogsWindow::new(state, &progress));
 
         state.plug(BuildGroup {
             id: *id,

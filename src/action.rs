@@ -74,7 +74,7 @@ impl Display for BuildStepId {
 // --- Action
 // ---
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum StartFields<'a> {
     Unknown,
     CopyPath {
@@ -105,7 +105,7 @@ pub enum StartFields<'a> {
     BuildWaiting,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ResultFields<'a> {
     BuildLogLine(Cow<'a, str>),
     SetPhase(&'a str),
@@ -121,7 +121,7 @@ pub enum ResultFields<'a> {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Action<'a> {
     Msg {
         level: u8,

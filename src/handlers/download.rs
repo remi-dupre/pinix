@@ -108,7 +108,7 @@ impl Handler for Transfer {
             }
 
             Action::Stop { id } if *id == self.transfer_id => {
-                if state.cmd.args.log_downloads {
+                if state.cmd.args.show_downloads {
                     if let Some(progress) = &self.progress {
                         let msg_main = format!(
                             "{} Downloaded {}",
