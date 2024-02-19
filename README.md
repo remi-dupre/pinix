@@ -20,7 +20,7 @@ adding it to your _flake.nix_:
 
 ```nix
 inputs = {
-  pinix.url = github:remi-dupre/pinix;
+  pinix.url = "github:remi-dupre/pinix";
 };
 ```
 
