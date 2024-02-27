@@ -25,19 +25,18 @@ fn load_example(example: &str) -> Vec<String> {
         .collect()
 }
 
-// Register a `fibonacci` function and benchmark it over multiple cases.
 #[divan::bench(args = ["nix-shell.rec", "nixos-rebuild.rec"])]
 fn parse_raw(bencher: Bencher, example: &str) {
-    let example = load_example(example);
+    let lines = load_example(example);
 
     bencher
-        .with_inputs(|| &example)
-        .counter(divan::counter::ItemsCount::new(example.len()))
-        .bench_refs(|lines| {
+        .counter(lines.len())
+        .bench(|| {
             lines
                 .iter()
                 .inspect(|line| {
-                    let _: RawAction = serde_json::from_str(line).expect("invalid line");
+                    let action: RawAction = serde_json::from_str(line).expect("invalid line");
+                    divan::black_box_drop(action);
                 })
                 .count()
         })
@@ -45,17 +44,17 @@ fn parse_raw(bencher: Bencher, example: &str) {
 
 #[divan::bench(args = ["nix-shell.rec", "nixos-rebuild.rec"])]
 fn parse(bencher: Bencher, example: &str) {
-    let example = load_example(example);
+    let lines = load_example(example);
 
     bencher
-        .with_inputs(|| &example)
-        .counter(divan::counter::ItemsCount::new(example.len()))
-        .bench_refs(|lines| {
+        .counter(lines.len())
+        .bench(|| {
             lines
                 .iter()
                 .inspect(|line| {
                     let raw: RawAction = serde_json::from_str(line).expect("invalid line");
-                    let _: Action = raw.try_into().unwrap();
+                    let action: Action = raw.try_into().unwrap();
+                    divan::black_box_drop(action);
                 })
                 .count()
         })
