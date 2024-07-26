@@ -1,11 +1,11 @@
 use std::fmt::{self, Display};
-use std::sync::LazyLock;
 
 use console::style;
 use indicatif::ProgressStyle;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
-static MATCH_BUILD_TARGET: LazyLock<Regex> = LazyLock::new(|| {
+static MATCH_BUILD_TARGET: Lazy<Regex> = Lazy::new(|| {
     Regex::new(concat!(
         r"^",
         r"(?P<prefix>\/nix\/store\/[a-z0-9]+)-",

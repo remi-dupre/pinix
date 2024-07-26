@@ -1,16 +1,16 @@
 use std::rc::Rc;
-use std::sync::LazyLock;
 
 use console::style;
 use indexmap::IndexMap;
 use indicatif::{ProgressBar, ProgressStyle};
+use once_cell::sync::Lazy;
 
 use crate::action::{Action, BuildStepId, ResultFields, StartFields};
 use crate::handlers::logs::{LogHandler, LogsWindow};
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_short_build_target, template_style, MultiBar};
 
-static C_RUN: LazyLock<String> = LazyLock::new(|| style("-").blue().bright().to_string());
+static C_RUN: Lazy<String> = Lazy::new(|| style("-").blue().bright().to_string());
 
 pub fn get_style(size: u16) -> ProgressStyle {
     template_style(

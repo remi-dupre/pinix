@@ -1,13 +1,13 @@
 use console::style;
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
-use std::sync::LazyLock;
+use once_cell::sync::Lazy;
 
 use crate::action::{Action, BuildStepId, ResultFields, StartFields};
 use crate::handlers::logs::LogHandler;
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::{format_build_target, format_short_build_target, template_style, MultiBar};
 
-static C_RUN: LazyLock<String> = LazyLock::new(|| style("-").blue().bright().to_string());
+static C_RUN: Lazy<String> = Lazy::new(|| style("-").blue().bright().to_string());
 
 /// Min size of the package for a progressbar to be displayed
 const MIN_PROGRESS_PAYLOAD: u64 = 10 * 1024 * 1024; // 1MB
