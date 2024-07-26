@@ -1,10 +1,13 @@
 use console::style;
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
+use once_cell::sync::Lazy;
 
 use crate::action::{Action, BuildStepId, ResultFields, StartFields};
 use crate::handlers::logs::LogHandler;
 use crate::state::{Handler, HandlerResult, State};
-use crate::style::{format_build_target, format_short_build_target, template_style};
+use crate::style::{format_build_target, format_short_build_target, template_style, MultiBar};
+
+static C_RUN: Lazy<String> = Lazy::new(|| style("-").blue().bright().to_string());
 
 /// Min size of the package for a progressbar to be displayed
 const MIN_PROGRESS_PAYLOAD: u64 = 10 * 1024 * 1024; // 1MB
@@ -14,11 +17,11 @@ fn get_style(size: u16) -> ProgressStyle {
         size,
         true,
         |size| match size {
-            0..=50 => "{prefix} {wide_msg}",
-            51..=60 => "{prefix} {wide_msg} {binary_bytes_per_sec:^12}",
-            _ => "{prefix} {wide_msg} {binary_bytes_per_sec:^12} {bytes:^12}",
+            0..=50 => "Download {wide_msg}",
+            51..=60 => "Download {wide_msg} {binary_bytes_per_sec:^12}",
+            _ => "Download {wide_msg} {binary_bytes_per_sec:^12} {bytes:^12}",
         },
-        |size| format!("[{{bar:{size}}}]"),
+        |_| "[{prefix}]",
     )
 }
 
@@ -76,6 +79,22 @@ struct Transfer {
     path: String,
 }
 
+impl Transfer {
+    fn update_bar(&self, term_size: u16) {
+        if let Some(progress) = &self.progress {
+            let pos = progress.position();
+            let exp = progress.length().unwrap_or(pos);
+
+            progress.set_style(get_style(term_size));
+            progress.set_prefix(
+                MultiBar([("#", pos), (C_RUN.as_str(), exp - pos)])
+                    .scale(u64::from(term_size) / 3)
+                    .to_string(),
+            )
+        }
+    }
+}
+
 impl Handler for Transfer {
     fn on_action(&mut self, state: &mut State, action: &Action) -> anyhow::Result<HandlerResult> {
         match action {
@@ -104,6 +123,7 @@ impl Handler for Transfer {
                     progress.set_position(*done);
                 }
 
+                self.update_bar(state.term_size);
                 Ok(HandlerResult::Continue)
             }
 
@@ -129,6 +149,7 @@ impl Handler for Transfer {
                     }
                 }
 
+                self.update_bar(state.term_size);
                 Ok(HandlerResult::Close)
             }
 

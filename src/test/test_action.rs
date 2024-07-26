@@ -1,7 +1,7 @@
 use crate::action::{Action, ActionType, ResultFields, StartFields};
 
 #[test]
-fn test_parse_start() -> anyhow::Result<()> {
+fn parse_start() -> anyhow::Result<()> {
     let act = Action::parse(concat!(
         r#"{"action":"start","id":3239822680391680,"level":6,"parent":0,"text":"querying info ab"#,
         r#"out missing paths","type":0}"#,
@@ -22,7 +22,7 @@ fn test_parse_start() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_parse_result() -> anyhow::Result<()> {
+fn parse_result() -> anyhow::Result<()> {
     let act = Action::parse(
         r#"{"action":"result","fields":[101,4242],"id":3239822680391681,"type":106}"#,
     )?;
@@ -42,7 +42,7 @@ fn test_parse_result() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_parse_stop() -> anyhow::Result<()> {
+fn parse_stop() -> anyhow::Result<()> {
     let act = Action::parse(r#"{"action":"stop","id":3239822680391838}"#)?;
 
     assert_eq!(

@@ -1,0 +1,11 @@
+debug = false
+
+[summary]
+download = true
+
+[log-history]
+size = 5
+failure-size = 30
+
+[log-window]
+size = 10

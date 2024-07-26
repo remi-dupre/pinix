@@ -4,9 +4,9 @@ use indicatif::{ProgressBar, ProgressFinish, ProgressStyle};
 
 use crate::action::{Action, BuildStepId, StartFields};
 use crate::handlers::logs::LogHandler;
-use crate::indicatif_ext::ProgressBarExt;
 use crate::state::{Handler, HandlerResult, State};
 use crate::style::template_style;
+use crate::util::indicatif_ext::ProgressBarExt;
 
 fn build_style(size: u16) -> ProgressStyle {
     template_style(size, true, |_| "{msg} {spinner} {wide_bar}", |_| "").tick_chars("…  ")

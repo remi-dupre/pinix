@@ -87,27 +87,17 @@ impl DownloadsGroup {
             return;
         };
 
-        let size = u64::from(term_size / 3);
         let done = self.get_done();
         let expected = self.max_transfer;
         let running = self.get_running();
 
-        let adv1 = (size * done + expected / 2)
-            .checked_div(expected)
-            .unwrap_or(0);
-
-        let adv2 = (size * running + expected / 2)
-            .checked_div(expected)
-            .unwrap_or(0);
-
-        let c_pos = "#";
-
         progress.set_prefix(
             MultiBar([
-                (c_pos, adv1),
-                (C_RUN.as_str(), adv2 - adv1),
-                (" ", size - adv2),
+                ("#", done),
+                (C_RUN.as_str(), running - done),
+                (" ", expected - running),
             ])
+            .scale(u64::from(term_size) / 3)
             .to_string(),
         );
     }

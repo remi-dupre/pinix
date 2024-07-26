@@ -64,6 +64,29 @@ pub fn format_build_target(raw_str: &str) -> String {
 #[derive(Debug)]
 pub struct MultiBar<'s, const N: usize>(pub [(&'s str, u64); N]);
 
+impl<'s, const N: usize> MultiBar<'s, N> {
+    /// Total length of the bar
+    pub(crate) fn length(&self) -> u64 {
+        self.0.iter().map(|(_, len)| *len).sum()
+    }
+
+    /// Transforms the bar to be of target size
+    pub(crate) fn scale(&self, size: u64) -> Self {
+        let length = std::cmp::max(self.length(), 1);
+        let mut prev_prop = 0;
+        let mut curr_prop = 0;
+
+        let inner = self.0.map(|(c, len)| {
+            curr_prop += len;
+            let nb_chars = size * curr_prop / length - size * prev_prop / length;
+            prev_prop = curr_prop;
+            (c, nb_chars)
+        });
+
+        Self(inner)
+    }
+}
+
 impl<const N: usize> fmt::Display for MultiBar<'_, N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for &(c, len) in &self.0 {

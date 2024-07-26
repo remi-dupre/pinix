@@ -66,24 +66,10 @@ impl BuildGroup {
     }
 
     fn build_bar(&self, size: u16) -> MultiBar<'_, 3> {
-        let size = u64::from(size / 3);
         let [done, expected, running] = self.last_state;
-
-        let adv1 = (size * done + expected / 2)
-            .checked_div(expected)
-            .unwrap_or(0);
-
-        let adv2 = (size * (done + running) + expected / 2)
-            .checked_div(expected)
-            .unwrap_or(0);
-
         let c_pos = "#";
-
-        MultiBar([
-            (c_pos, adv1),
-            (C_RUN.as_str(), adv2 - adv1),
-            (" ", size - adv2),
-        ])
+        MultiBar([(c_pos, done), (C_RUN.as_str(), running), (" ", expected)])
+            .scale(u64::from(size) / 3)
     }
 }
 
