@@ -68,8 +68,12 @@ impl BuildGroup {
     fn build_bar(&self, size: u16) -> MultiBar<'_, 3> {
         let [done, expected, running] = self.last_state;
         let c_pos = "#";
-        MultiBar([(c_pos, done), (C_RUN.as_str(), running), (" ", expected)])
-            .scale(u64::from(size) / 3)
+        MultiBar([
+            (c_pos, done),
+            (C_RUN.as_str(), running),
+            (" ", expected - done - running),
+        ])
+        .scale(u64::from(size) / 3)
     }
 }
 
