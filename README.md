@@ -24,6 +24,16 @@ inputs = {
 };
 ```
 
+```nix
+{ config, pkgs, lib, inputs, ... }:
+ 
+{
+  environment.systemPackages = [
+    inputs.pinix.packages.${system}.default
+  ];
+}
+```
+
 ### Using Cargo
 
 You can also install pinix from sources by using [cargo][cargo]:
