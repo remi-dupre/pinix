@@ -58,7 +58,6 @@ impl<R: AsyncRead + Unpin> BorrowLines<R> {
         if self.buffer.is_empty() {
             Ok(None)
         } else {
-            assert_eq!(self.buffer.last(), Some(&b'\n'));
             self.yielded = true;
             Ok(Some(self.buffer.as_slice()))
         }
