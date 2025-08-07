@@ -1,6 +1,6 @@
 [package]
 name = "pinix"
-version = "0.3.2"
+version = "0.3.3"
 description = "Progress In Nix - Pacman inspired frontend for Nix"
 authors = ["Rémi Dupré <remi@dupre.io>"]
 license = "LGPL-3.0-or-later"
@@ -14,7 +14,7 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
 clap = { version = "4", features = ["derive", "string"] }
-console = "0.15"
+console = "0.16"
 futures = "0.3"
 indexmap = "2"
 indicatif = { version = "0.17", git = "https://github.com/remi-dupre/indicatif", branch = "main" }
