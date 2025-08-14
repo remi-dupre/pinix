@@ -64,7 +64,7 @@ pub fn format_build_target(raw_str: &str) -> String {
 #[derive(Debug)]
 pub struct MultiBar<'s, const N: usize>(pub [(&'s str, u64); N]);
 
-impl<'s, const N: usize> MultiBar<'s, N> {
+impl<const N: usize> MultiBar<'_, N> {
     /// Total length of the bar
     pub(crate) fn length(&self) -> u64 {
         self.0.iter().map(|(_, len)| *len).sum()

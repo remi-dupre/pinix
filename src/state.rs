@@ -161,9 +161,9 @@ impl<'s> State<'s> {
     }
 }
 
-pub async fn monitor_logs<'c>(
+pub async fn monitor_logs(
     cmd: &NixCommand,
-    mut log_stream: MergedStreams<'c>,
+    mut log_stream: MergedStreams<'_>,
 ) -> anyhow::Result<()> {
     let mut state = State::new(cmd);
     let start_time = Instant::now();

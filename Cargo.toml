@@ -14,7 +14,7 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
 clap = { version = "4", features = ["derive", "string"] }
-console = "0.16"
+console = { version = "0.15", git = "https://github.com/remi-dupre/fork-console.git", branch = "ansi-slice", default-features = false, features = ["ansi-parsing"] }
 futures = "0.3"
 indexmap = "2"
 indicatif = { version = "0.17", git = "https://github.com/remi-dupre/indicatif", branch = "main" }
