@@ -1,6 +1,6 @@
 [package]
 name = "pinix"
-version = "0.3.3"
+version = "1.0.0"
 description = "Progress In Nix - Pacman inspired frontend for Nix"
 authors = ["Rémi Dupré <remi@dupre.io>"]
 license = "LGPL-3.0-or-later"
@@ -23,7 +23,7 @@ regex = "1"
 serde_json = { version = "1", features = ["raw_value"] }
 serde_repr = "0.1"
 serde = { version = "1", features = ["derive"] }
-toml = { version = "0.8", default-features = false, features = ["parse"] }
+toml = { version = "1.0", default-features = false, features = ["parse", "serde"] }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "process", "rt", "time"] }
 
 [dev-dependencies]
