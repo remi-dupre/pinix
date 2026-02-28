@@ -23,7 +23,7 @@ regex = "1"
 serde_json = { version = "1", features = ["raw_value"] }
 serde_repr = "0.1"
 serde = { version = "1", features = ["derive"] }
-toml = { version = "0.8", default-features = false, features = ["parse"] }
+toml = { version = "1.0", default-features = false, features = ["parse", "serde"] }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "process", "rt", "time"] }
 
 [dev-dependencies]
