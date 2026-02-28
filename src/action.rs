@@ -12,10 +12,11 @@ use crate::action_raw::RawAction;
 // --- ActionType
 // ---
 
-#[derive(Clone, Copy, Debug, Deserialize_repr)]
+#[derive(Clone, Copy, Debug, Default, Deserialize_repr)]
 #[repr(u8)]
 #[derive(Eq, PartialEq)]
 pub enum ActionType {
+    #[default]
     Unknown = 0,
     CopyPath = 100,
     FileTransfer = 101,
@@ -29,12 +30,6 @@ pub enum ActionType {
     QueryPathInfo = 109,
     PostBuildHook = 110,
     BuildWaiting = 111,
-}
-
-impl Default for ActionType {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 // ---
