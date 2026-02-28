@@ -1,6 +1,6 @@
 [package]
 name = "pinix"
-version = "0.3.3"
+version = "1.0.0"
 description = "Progress In Nix - Pacman inspired frontend for Nix"
 authors = ["Rémi Dupré <remi@dupre.io>"]
 license = "LGPL-3.0-or-later"
