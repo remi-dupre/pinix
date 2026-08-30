@@ -29,6 +29,8 @@ pub enum ActionType {
     QueryPathInfo = 109,
     PostBuildHook = 110,
     BuildWaiting = 111,
+    FetchTree = 112,
+    FetchToStore = 113,
 }
 
 impl Default for ActionType {
@@ -119,6 +121,7 @@ pub enum ResultFields<'a> {
         action: ActionType,
         expected: u64,
     },
+    FetchToStore(Cow<'a, str>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
