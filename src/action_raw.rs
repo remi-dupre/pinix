@@ -113,6 +113,10 @@ impl<'a> TryFrom<RawAction<'a>> for Action<'a> {
                     ActionType::QueryPathInfo => StartFields::QueryPathInfo,
                     ActionType::PostBuildHook => StartFields::PostBuildHook,
                     ActionType::BuildWaiting => StartFields::BuildWaiting,
+                    // Nix's own progress bar has no dedicated display for these either: it
+                    // falls back to the generic spinner+text behavior, same as StartFields::Unknown.
+                    ActionType::FetchTree => StartFields::Unknown,
+                    ActionType::FetchToStore => StartFields::Unknown,
                 };
 
                 Action::Start {
@@ -155,6 +159,15 @@ impl<'a> TryFrom<RawAction<'a>> for Action<'a> {
                         ResultFields::SetExpected { action, expected }
                     }
                     107 => todo!("PostBuildLogLine({raw_fields})"),
+                    108 => {
+                        // Fetch progress status line, same shape as a build log line.
+                        let [line] = serde_json::from_str(raw_fields).context("invalid fields")?;
+                        ResultFields::BuildLogLine(line)
+                    }
+                    109 => {
+                        let [path] = serde_json::from_str(raw_fields).context("invalid fields")?;
+                        ResultFields::FetchToStore(path)
+                    }
                     v => anyhow::bail!("Unknown result type `{v}`"),
                 };
 
